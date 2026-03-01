@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background-color: #ffffff;
+  --foreground-color: #000000;
+  --primary-color: #037d40;
+  --secondary-color: #e6f2ec;
+  --footer-color: #01351b;
+  --font-kanit: "Kanit", sans-serif; /* Define the Kanit font */
+}
+
+.kanit-font {
+  font-family: var(--font-kanit);
+}
+@media (max-width: 768px) {
+  .MuiBox-root.css-8q5m1x {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .MuiBox-root.css-b0ene1 {
+    display: none !important;
+  }
+}
+
+.MuiList-root {
+  padding: 8px; /* Default padding */
+}
+
+@media (max-width: 768px) {
+  .MuiList-root {
+    padding: 0 !important; /* Remove padding for medium screens or smaller */
+  }
+}
+
+.bg-background {
+  background-color: var(--background-color);
+}
+.text-foreground {
+  color: var(--foreground-color);
+}
+.bg-primary {
+  background-color: var(--primary-color);
+}
+.bg-secondary {
+  background-color: var(--secondary-color);
+}
+.bg-footer {
+  background-color: var(--footer-color);
+}
+.text-primary {
+  color: var(--primary-color);
+}
+.text-secondary {
+  color: var(--secondary-color);
+}
+
+body {
+  color: var(--foreground-color);
+  background: var(--background-color);
+  font-family: var(--font-kanit); /* Apply Kanit font */
+}
+
+/* Ensure Tailwind applies its utilities */
+body {
+  @apply font-sans; /* This ensures Tailwind uses the font-family defined in the config */
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+.custom-padding {
+  padding-left: 100px;
+  padding-right: 20px; /* Added 'px' for consistency */
+  padding-top: 30px;
+  padding-bottom: 10px;
+}
+
+.custom-shape {
+  clip-path: polygon(0 0, 100% 0%, 100% 85%, 0% 100%);
+}
+
