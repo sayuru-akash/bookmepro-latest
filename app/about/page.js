@@ -1,27 +1,39 @@
-"use client";
-
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { useSession } from "next-auth/react";
+
+export const metadata = {
+  title: "About BookMePro | Vision, Mission, and Platform Focus",
+  description:
+    "Learn about BookMePro's mission and vision for helping coaches, trainers, consultants, and instructors run better booking experiences.",
+  alternates: {
+    canonical: "/about",
+  },
+  openGraph: {
+    title: "About BookMePro",
+    description:
+      "How BookMePro helps service professionals present and manage their bookings more effectively.",
+    url: "/about",
+    type: "website",
+    images: [
+      {
+        url: "/images/about/SliderMain.png",
+        width: 1200,
+        height: 630,
+        alt: "About BookMePro",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "About BookMePro",
+    description:
+      "Vision, mission, and platform focus for service-based businesses.",
+    images: ["/images/about/SliderMain.png"],
+  },
+};
 
 export default function About() {
-  const { status } = useSession();
-
-  if (status === "loading") {
-    return (
-      <div className="flex justify-center items-center min-h-screen ">
-        <div className="flex flex-col justify-center items-center">
-          {/* Spinner */}
-          <div className="w-16 h-16 border-4 border-t-primary border-gray-300 rounded-full animate-spin"></div>
-          <div className="mt-4 text-primary text-xl font-semibold">
-            Loading...
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <main className="bg-[#f5f1e8] text-[#10311f]">
       <section className="relative overflow-hidden pb-16 pt-32 sm:pb-20 sm:pt-40">

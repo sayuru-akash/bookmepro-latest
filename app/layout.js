@@ -10,8 +10,40 @@ const kanit = Kanit({
 });
 
 export const metadata = {
-  title: "BookMePro",
-  description: "Book your coach today",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "https://bookmepro.com.au"
+  ),
+  title: {
+    default: "BookMePro",
+    template: "%s | BookMePro",
+  },
+  description:
+    "Professional booking platform for coaches, trainers, instructors, and consultants.",
+  applicationName: "BookMePro",
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    siteName: "BookMePro",
+    type: "website",
+    locale: "en_AU",
+    images: [
+      {
+        url: "/images/about/SliderMain.png",
+        width: 1200,
+        height: 630,
+        alt: "BookMePro",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/images/about/SliderMain.png"],
+  },
   icons: {
     icon: "/images/iconmark-bmp.ico",
   },
