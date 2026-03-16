@@ -42,7 +42,7 @@ export async function GET(req, { params }) {
       location: coach.location,
       contact: coach.contact,
       image: coach.profilePhoto || "/images/coach/defaultprofile.jpg",
-      gallery: coach.gallery || ["/images/default-coach.png"],
+      gallery: coach.gallery || ["/images/coach/defaultprofile.jpg"],
       role: coach.role,
       plan: coach.plan,
       maxStudents: coach.maxStudents,
