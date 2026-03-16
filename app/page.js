@@ -1,4 +1,4 @@
-import HomePageClient from "./HomePageClient";
+import HomePageContent from "../components/home/HomePageContent";
 
 export const metadata = {
   title: "BookMePro | Coaching and Service Booking Platform",
@@ -32,5 +32,5 @@ export const metadata = {
 };
 
 export default function HomePage() {
-  return <HomePageClient />;
+  return <HomePageContent />;
 }

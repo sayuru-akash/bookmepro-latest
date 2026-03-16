@@ -11,8 +11,8 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import Pricing from "../components/Pricing.js";
-import HomeAuthAction from "../components/home/HomeAuthAction";
+import Pricing from "../Pricing.js";
+import HomeAuthAction from "./HomeAuthAction";
 
 const audienceCards = [
   {
@@ -104,7 +104,7 @@ const featureTiles = [
   "Designed to reduce admin drag so more time goes into delivery",
 ];
 
-export default function HomePageClient() {
+export default function HomePageContent() {
   return (
     <main className="bg-[#f5f1e8] text-[#10311f]">
       <section className="relative isolate overflow-hidden">
@@ -143,9 +143,7 @@ export default function HomePageClient() {
               </p>
 
               <div className="mt-8 flex flex-wrap items-center gap-4">
-                <HomeAuthAction
-                  className="inline-flex items-center gap-2 rounded-full bg-[#f2c66d] px-6 py-3 text-base font-semibold text-[#163322] transition-transform duration-300 hover:-translate-y-0.5"
-                />
+                <HomeAuthAction className="inline-flex items-center gap-2 rounded-full bg-[#f2c66d] px-6 py-3 text-base font-semibold text-[#163322] transition-transform duration-300 hover:-translate-y-0.5" />
                 <a
                   href="#pricing"
                   className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-6 py-3 text-base font-medium text-white backdrop-blur-md transition-colors duration-300 hover:bg-white/16"
@@ -252,7 +250,7 @@ export default function HomePageClient() {
         </div>
       </section>
 
-     <section className="pb-20 sm:pb-24">
+      <section className="pb-20 sm:pb-24">
         <div className="container mx-auto px-6 md:px-20">
           <div className="grid items-center gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16">
             <div className="relative lg:self-end">
@@ -304,7 +302,7 @@ export default function HomePageClient() {
                     </div>
                     <div>
                       <h3 className="text-xl font-semibold text-[#143521]">
-                         {title}
+                        {title}
                       </h3>
                       <p className="mt-2 text-base leading-7 text-[#486651]">
                         {description}
@@ -408,7 +406,7 @@ export default function HomePageClient() {
         </div>
       </section>
 
-      <section className="pb-20 sm:pb-24">
+      <section id="pricing" className="pb-20 sm:pb-24">
         <div className="container mx-auto px-6 md:px-20">
           <div className="overflow-hidden rounded-[2.25rem] border border-[#d8e3d8] bg-[linear-gradient(135deg,#f8f5ee_0%,#edf5ef_100%)] p-6 shadow-[0_24px_80px_rgba(16,49,31,0.08)] sm:p-8 lg:p-10">
             <div className="max-w-3xl">
@@ -442,9 +440,7 @@ export default function HomePageClient() {
               </div>
 
               <div className="flex flex-wrap gap-4 lg:justify-end">
-                <HomeAuthAction
-                  className="inline-flex items-center gap-2 rounded-full bg-[#f2c66d] px-6 py-3 text-base font-semibold text-[#163322] transition-transform duration-300 hover:-translate-y-0.5"
-                />
+                <HomeAuthAction className="inline-flex items-center gap-2 rounded-full bg-[#f2c66d] px-6 py-3 text-base font-semibold text-[#163322] transition-transform duration-300 hover:-translate-y-0.5" />
                 <Link
                   href="/contact"
                   className="inline-flex items-center rounded-full border border-white/20 px-6 py-3 text-base font-medium text-white/92 transition-colors duration-300 hover:bg-white/10"
