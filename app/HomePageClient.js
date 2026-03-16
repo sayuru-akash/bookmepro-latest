@@ -1,11 +1,6 @@
-//app/page.js
-"use client";
-
 import Image from "next/image";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
 import {
-  ArrowRight,
   BriefcaseBusiness,
   CalendarDays,
   ChevronDown,
@@ -17,6 +12,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import Pricing from "../components/Pricing.js";
+import HomeAuthAction from "../components/home/HomeAuthAction";
 
 const audienceCards = [
   {
@@ -109,40 +105,6 @@ const featureTiles = [
 ];
 
 export default function HomePageClient() {
-  const { data: session } = useSession();
-
-  const scrollToSection = (sectionId) => {
-    const nextSection = document.getElementById(sectionId);
-
-    if (nextSection) {
-      nextSection.scrollIntoView({ behavior: "smooth" });
-    }
-  };
-
-  const isCoach = session?.user?.role === "coach";
-  const hasCoachAccess =
-    isCoach &&
-    (session?.user?.paymentStatus === "active" ||
-      session?.user?.paymentStatus === "trialing");
-
-  const accountHref = hasCoachAccess
-    ? "/dashboard"
-    : session?.user?.role === "student"
-      ? "/student-dashboard"
-      : session?.user?.role === "admin"
-        ? "/bmpadmin/dashboard"
-        : "/auth/signup";
-
-  const accountLabel = hasCoachAccess
-    ? "Open Coach Dashboard"
-    : session?.user?.role === "student"
-      ? "Open Student Dashboard"
-      : session?.user?.role === "admin"
-        ? "Open Admin Dashboard"
-        : isCoach
-          ? "Choose Your Plan"
-          : "Create Your Free Account";
-
   return (
     <main className="bg-[#f5f1e8] text-[#10311f]">
       <section className="relative isolate overflow-hidden">
@@ -181,20 +143,15 @@ export default function HomePageClient() {
               </p>
 
               <div className="mt-8 flex flex-wrap items-center gap-4">
-                <Link
-                  href={accountHref}
+                <HomeAuthAction
                   className="inline-flex items-center gap-2 rounded-full bg-[#f2c66d] px-6 py-3 text-base font-semibold text-[#163322] transition-transform duration-300 hover:-translate-y-0.5"
-                >
-                  {accountLabel}
-                  <ArrowRight size={18} />
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => scrollToSection("pricing")}
+                />
+                <a
+                  href="#pricing"
                   className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-6 py-3 text-base font-medium text-white backdrop-blur-md transition-colors duration-300 hover:bg-white/16"
                 >
                   See pricing
-                </button>
+                </a>
               </div>
 
               <div className="mt-10 hidden max-w-4xl flex-wrap gap-3 text-sm text-white/84 sm:flex sm:text-base">
@@ -248,14 +205,13 @@ export default function HomePageClient() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => scrollToSection("explore")}
+          <a
+            href="#explore"
             className="absolute bottom-8 left-1/2 hidden -translate-x-1/2 items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white/90 backdrop-blur-md md:inline-flex"
           >
             Explore the platform
             <ChevronDown size={16} />
-          </button>
+          </a>
         </div>
       </section>
 
@@ -486,13 +442,9 @@ export default function HomePageClient() {
               </div>
 
               <div className="flex flex-wrap gap-4 lg:justify-end">
-                <Link
-                  href={accountHref}
+                <HomeAuthAction
                   className="inline-flex items-center gap-2 rounded-full bg-[#f2c66d] px-6 py-3 text-base font-semibold text-[#163322] transition-transform duration-300 hover:-translate-y-0.5"
-                >
-                  {accountLabel}
-                  <ArrowRight size={18} />
-                </Link>
+                />
                 <Link
                   href="/contact"
                   className="inline-flex items-center rounded-full border border-white/20 px-6 py-3 text-base font-medium text-white/92 transition-colors duration-300 hover:bg-white/10"
