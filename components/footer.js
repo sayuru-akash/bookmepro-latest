@@ -1,9 +1,6 @@
 import Link from "next/link";
-import { FaFacebookF, FaInstagram, FaLinkedinIn } from "react-icons/fa";
-import { FiX } from "react-icons/fi";
+import { FaFacebookF, FaLinkedinIn } from "react-icons/fa";
 import Image from "next/image";
-
-import SubscribeSection from "./SubscribeSection";
 
 export default function Footer() {
   return (
@@ -67,14 +64,15 @@ export default function Footer() {
             </div>
 
             {/* Right Side - Social Media Icons */}
-            <div className="flex space-x-4 sm:space-x-6">
+            <div className="flex items-center gap-3 sm:gap-4">
               <a
                 href="https://facebook.com/bookmepro.au"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-gray-400"
+                aria-label="BookMePro Australia on Facebook"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-white/5 text-white transition-all duration-300 hover:-translate-y-0.5 hover:border-[#f2c66d] hover:bg-[#f2c66d] hover:text-[#163322]"
               >
-                <FaFacebookF className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8" />
+                <FaFacebookF className="h-4 w-4" />
               </a>
               {/* <a
                 href="https://your-custom-link.com"
@@ -88,17 +86,19 @@ export default function Footer() {
                 href="https://facebook.com/bookmeprosl/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-gray-400"
+                aria-label="BookMePro Sri Lanka on Facebook"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-white/5 text-white transition-all duration-300 hover:-translate-y-0.5 hover:border-[#f2c66d] hover:bg-[#f2c66d] hover:text-[#163322]"
               >
-                <FaFacebookF className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8" />
+                <FaFacebookF className="h-4 w-4" />
               </a>
               <a
                 href="https://www.linkedin.com/in/rizvi-wahid-3ba6b332/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-gray-400"
+                aria-label="BookMePro on LinkedIn"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/25 bg-white/5 text-white transition-all duration-300 hover:-translate-y-0.5 hover:border-[#f2c66d] hover:bg-[#f2c66d] hover:text-[#163322]"
               >
-                <FaLinkedinIn className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8" />
+                <FaLinkedinIn className="h-4 w-4" />
               </a>
             </div>
           </div>
