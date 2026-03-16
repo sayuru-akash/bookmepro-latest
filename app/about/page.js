@@ -1,71 +1,12 @@
 "use client";
+
 import Image from "next/image";
-import TeamMemberCard from "../../components/TeamMemberCard";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useState, useEffect } from "react";
-import Header from "../../components/header";
-import LoginForm from "../../components/LoginForm";
 
 export default function About() {
   const { status } = useSession();
-  const [isMobile, setIsMobile] = useState(false);
-  const [isPlanModalOpen, setPlanModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("signup");
-  const [billingCycle, setBillingCycle] = useState("monthly");
-
-  const teamMembers = [
-    {
-      name: "Guy Hawkins",
-      quote:
-        "We strive to challenge ourselves for a better tomorrow by creating meaningful designs that enrich lives and maintain lasting relevance.",
-      image: "/images/about/teamMember.png",
-    },
-    // Add more team members here...
-  ];
-
-  // Define pricing plans
-  const plans = [
-    {
-      name: "Starter",
-      description: "For 1-25 Students",
-      prices: {
-        monthly: { amount: 10, label: "/mo" },
-        quarterly: { amount: 25, label: "Quarterly" },
-        yearly: { amount: 90, label: "Yearly" },
-      },
-      signupLink: "/auth/signup?plan=starter", // legacy link, now replaced by dynamic query params
-    },
-    {
-      name: "Growth",
-      description: "For 26-50 Students",
-      prices: {
-        monthly: { amount: 15, label: "/mo" },
-        quarterly: { amount: 40, label: "Quarterly" },
-        yearly: { amount: 120, label: "Yearly" },
-      },
-      signupLink: "/auth/signup?plan=growth",
-    },
-    {
-      name: "Pro",
-      description: "For 51-100 Students",
-      prices: {
-        monthly: { amount: 20, label: "/mo" },
-        quarterly: { amount: 50, label: "Quarterly" },
-        yearly: { amount: 150, label: "Yearly" },
-      },
-      signupLink: "/auth/signup?plan=pro",
-    },
-    {
-      name: "Enterprise",
-      description: "For 100+ Students",
-      prices: {
-        monthly: { amount: 25, label: "/mo" },
-        quarterly: { amount: 60, label: "Quarterly" },
-        yearly: { amount: 200, label: "Yearly" },
-      },
-      signupLink: "/auth/signup?plan=enterprise",
-    },
-  ];
 
   if (status === "loading") {
     return (
@@ -82,108 +23,93 @@ export default function About() {
   }
 
   return (
-    <>
-      <Header openPlanModal={() => setPlanModalOpen(true)} />
-      <section>
-        <div className="flex items-center pt-40 h-full">
-          <div className="container text-center mx-auto px-10 md:px-20">
-            <h1 className="text-black font-bold text-3xl md:text-5xl">
-              Booking Your Coaching Sessions{" "}
+    <main className="bg-[#f5f1e8] text-[#10311f]">
+      <section className="relative overflow-hidden pb-16 pt-32 sm:pb-20 sm:pt-40">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(180,214,189,0.45),transparent_38%),radial-gradient(circle_at_80%_72%,rgba(242,198,109,0.25),transparent_36%)]" />
+        <div className="container relative mx-auto px-6 md:px-20">
+          <div className="max-w-4xl">
+            <div className="inline-flex items-center rounded-full border border-[#cddfcf] bg-[#edf5ef] px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-[#4d6f58]">
+              About BookMePro
+            </div>
+            <h1 className="mt-6 text-4xl font-semibold tracking-[-0.03em] text-[#143521] sm:text-5xl lg:text-6xl">
+              Built for professionals who want their booking experience to feel
+              as credible as their expertise.
             </h1>
-            <h1 className="mt-4 font-bold text-black text-3xl md:text-5xl">
-              Just Got Easier
-            </h1>
-            <p className="text-black font-light mx-auto max-w-3xl md:max-w-5xl mt-6 md:mt-9 text-lg md:text-2xl">
-              Effortlessly schedule and manage your coaching sessions with a
-              seamless, hassle-free booking experience. Clients can book their
-              sessions in just a few clicks, keeping your calendar organised and
-              accessible.
+            <p className="mt-6 max-w-3xl text-lg leading-8 text-[#365542] sm:text-xl">
+              BookMePro started with a simple idea: service-based businesses
+              should not have to choose between delivering great work and
+              managing admin chaos. We help coaches, trainers, instructors, and
+              consultants look sharper online and run bookings with less
+              friction.
             </p>
           </div>
         </div>
       </section>
-      <section>
-        <div className="container pb-12 md:pb-20 text-center mx-auto px-10 md:px-20">
-          <div className="flex justify-center mt-8 md:mt-16 items-center">
-            <div className="grid items-center grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 w-full">
-              <div className="col-span-1 flex flex-col gap-4">
-                <Image
-                  src="/images/about/SilderCol31.png"
-                  width={500}
-                  height={300}
-                  layout="responsive"
-                  alt="Image 1"
-                  className="rounded-lg object-cover"
-                />
+
+      <section className="pb-12 sm:pb-16">
+        <div className="container mx-auto px-6 md:px-20">
+          <div className="grid auto-rows-[150px] gap-4 sm:auto-rows-[180px] lg:grid-cols-6 lg:auto-rows-[120px]">
+            <div className="relative overflow-hidden rounded-[1.75rem] border border-[#d8e3d8] bg-white shadow-[0_16px_45px_rgba(16,49,31,0.08)] lg:col-span-2 lg:row-span-3">
+              <Image
+                src="/images/about/SliderMain.png"
+                alt="BookMePro platform presentation"
+                fill
+                className="object-cover"
+              />
+            </div>
+            <div className="relative overflow-hidden rounded-[1.5rem] border border-[#d8e3d8] bg-white lg:col-span-2 lg:row-span-2">
+              <Image
+                src="/images/about/SilderCol31.png"
+                alt="Coaching workflow"
+                fill
+                className="object-cover"
+              />
+            </div>
+            <div className="rounded-[1.5rem] border border-[#d8e3d8] bg-[#10311f] p-6 text-white lg:col-span-2 lg:row-span-2">
+              <div className="text-xs uppercase tracking-[0.22em] text-[#b8d6bf]">
+                What we focus on
               </div>
-              <div className="col-span-1 flex flex-col gap-4">
-                <Image
-                  src="/images/about/SilderCol21.png"
-                  width={500}
-                  height={300}
-                  layout="responsive"
-                  alt="Image 2"
-                  className="rounded-lg object-cover"
-                />
-                <Image
-                  src="/images/about/SilderCol22.png"
-                  width={500}
-                  height={300}
-                  layout="responsive"
-                  alt="Image 3"
-                  className="rounded-lg object-cover"
-                />
-              </div>
-              <div className="col-span-1">
-                <Image
-                  src="/images/about/SliderMain.png"
-                  width={1000}
-                  height={600}
-                  layout="responsive"
-                  alt="Main Image"
-                  className="rounded-lg object-cover"
-                />
-              </div>
-              <div className="col-span-1 flex flex-col gap-4">
-                <Image
-                  src="/images/about/SilderCol23.png"
-                  width={500}
-                  height={300}
-                  layout="responsive"
-                  alt="Image 4"
-                  className="rounded-lg object-cover"
-                />
-                <Image
-                  src="/images/about/SilderCol24.png"
-                  width={500}
-                  height={300}
-                  layout="responsive"
-                  alt="Image 5"
-                  className="rounded-lg object-cover"
-                />
-              </div>
-              <div className="col-span-1 flex flex-col gap-4">
-                <Image
-                  src="/images/about/SilderCol32.png"
-                  width={500}
-                  height={300}
-                  layout="responsive"
-                  alt="Image 6"
-                  className="rounded-lg object-cover"
-                />
-              </div>
+              <p className="mt-4 text-lg leading-7">
+                Clear service positioning, cleaner booking journeys, and less
+                manual scheduling overhead.
+              </p>
+            </div>
+            <div className="relative overflow-hidden rounded-[1.5rem] border border-[#d8e3d8] bg-white lg:col-span-2 lg:row-span-2">
+              <Image
+                src="/images/about/SilderCol21.png"
+                alt="Client booking moments"
+                fill
+                className="object-cover"
+              />
+            </div>
+            <div className="relative overflow-hidden rounded-[1.5rem] border border-[#d8e3d8] bg-white lg:col-span-1 lg:row-span-2">
+              <Image
+                src="/images/about/SilderCol24.png"
+                alt="Service operations"
+                fill
+                className="object-cover"
+              />
+            </div>
+            <div className="relative overflow-hidden rounded-[1.5rem] border border-[#d8e3d8] bg-white lg:col-span-1 lg:row-span-2">
+              <Image
+                src="/images/about/SilderCol32.png"
+                alt="Professional growth"
+                fill
+                className="object-cover"
+              />
             </div>
           </div>
         </div>
       </section>
-      <section>
-        <div className="container pt-12 md:pt-24 mx-auto px-10 md:px-20">
-          <div className="grid grid-cols-1 md:grid-cols-9 gap-5 items-center">
+
+      <section className="py-12 sm:py-16">
+        <div className="container mx-auto px-6 md:px-20">
+          <div className="grid items-center gap-8 rounded-[2rem] border border-[#d8e3d8] bg-white p-6 shadow-[0_20px_60px_rgba(16,49,31,0.08)] md:grid-cols-9 md:p-10">
             <div className="md:col-span-5">
-              <h2 className="text-2xl md:text-4xl font-bold text-black">
+              <h2 className="text-3xl font-semibold text-[#143521] sm:text-4xl">
                 Vision
               </h2>
-              <p className="text-black mt-4 md:mt-6 max-w-3xl md:max-w-7xl font-light text-base md:text-2xl">
+              <p className="mt-5 text-base leading-8 text-[#365542] sm:text-lg">
                 To empower professionals across diverse fields by redefining how
                 they manage their time, connect with clients, and grow their
                 businesses. We envision a world where every coach, trainer,
@@ -196,32 +122,33 @@ export default function About() {
             <div className="md:col-span-4">
               <Image
                 src="/images/about/vission.png"
-                width={50}
-                height={100}
-                layout="responsive"
+                width={700}
+                height={700}
                 alt="Vision"
+                className="h-auto w-full"
               />
             </div>
           </div>
         </div>
       </section>
-      <section>
-        <div className="container py-12 md:py-24 mx-auto px-10 md:px-20">
-          <div className="grid grid-cols-1 md:grid-cols-9 gap-5 items-center">
-            <div className="md:col-span-4">
+
+      <section className="pb-16 pt-4 sm:pb-20 sm:pt-8">
+        <div className="container mx-auto px-6 md:px-20">
+          <div className="grid items-center gap-8 rounded-[2rem] border border-[#d8e3d8] bg-[#fbfaf6] p-6 shadow-[0_20px_60px_rgba(16,49,31,0.07)] md:grid-cols-9 md:p-10">
+            <div className="order-2 md:order-1 md:col-span-4">
               <Image
                 src="/images/about/Mission.png"
-                width={50}
-                height={100}
-                layout="responsive"
+                width={700}
+                height={700}
                 alt="Mission"
+                className="h-auto w-full"
               />
             </div>
-            <div className="md:col-span-5">
-              <h2 className="text-2xl md:text-4xl font-bold text-black">
+            <div className="order-1 md:order-2 md:col-span-5">
+              <h2 className="text-3xl font-semibold text-[#143521] sm:text-4xl">
                 Mission
               </h2>
-              <p className="text-black mt-4 md:mt-6 max-w-3xl md:max-w-7xl font-light text-base md:text-2xl">
+              <p className="mt-5 text-base leading-8 text-[#365542] sm:text-lg">
                 At BookMePro, our mission is to revolutionise appointment
                 management by providing a streamlined, intuitive platform that
                 enables professionals to manage their schedules with ease and
@@ -235,6 +162,32 @@ export default function About() {
           </div>
         </div>
       </section>
-    </>
+
+      <section className="pb-24">
+        <div className="container mx-auto px-6 md:px-20">
+          <div className="rounded-[2rem] bg-[linear-gradient(135deg,#10311f_0%,#184e31_50%,#2d6a47_100%)] px-6 py-10 text-white shadow-[0_20px_60px_rgba(9,30,18,0.25)] sm:px-10">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h3 className="text-3xl font-semibold tracking-[-0.02em] sm:text-4xl">
+                  Want to see how this fits your business model?
+                </h3>
+                <p className="mt-3 max-w-2xl text-base text-white/80 sm:text-lg">
+                  From coaching to consulting, BookMePro is designed to support
+                  service businesses that depend on trust, clarity, and reliable
+                  bookings.
+                </p>
+              </div>
+              <Link
+                href="/contact"
+                className="inline-flex items-center gap-2 rounded-full bg-[#f2c66d] px-6 py-3 font-semibold text-[#163322] transition-transform duration-300 hover:-translate-y-0.5"
+              >
+                Talk to our team
+                <ArrowRight size={18} />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }
