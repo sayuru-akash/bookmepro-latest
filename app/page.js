@@ -1,398 +1,518 @@
 //app/page.js
 "use client";
+
 import Image from "next/image";
-import TestimonialSlider from "../components/TestimonialSlider.js";
-import { useEffect, useRef } from "react";
-import { ChevronsUpDown } from "lucide-react";
-import { useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import {
+  ArrowRight,
+  BriefcaseBusiness,
+  CalendarDays,
+  ChevronDown,
+  Dumbbell,
+  GraduationCap,
+  Link2,
+  MapPinned,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import Pricing from "../components/Pricing.js";
 
+const audienceCards = [
+  {
+    title: "Coaches",
+    description:
+      "Run private sessions, recurring programs, and a branded booking page without juggling scattered tools.",
+    icon: Sparkles,
+  },
+  {
+    title: "Personal Trainers",
+    description:
+      "Manage availability across gyms, outdoor sessions, and online coaching from one schedule.",
+    icon: Dumbbell,
+  },
+  {
+    title: "Sports Instructors",
+    description:
+      "Make it easier for athletes and parents to find your profile, understand your offer, and book faster.",
+    icon: GraduationCap,
+  },
+  {
+    title: "Consultants",
+    description:
+      "Turn expertise into a clean client journey with structured bookings, clear service positioning, and less admin.",
+    icon: BriefcaseBusiness,
+  },
+];
+
+const platformHighlights = [
+  {
+    title: "A polished booking page you can actually share",
+    description:
+      "Give clients one destination for your profile, offer, availability, and next step.",
+    icon: Link2,
+  },
+  {
+    title: "Schedule control without the calendar chaos",
+    description:
+      "Set the times that work for you and keep your booking flow aligned with real availability.",
+    icon: CalendarDays,
+  },
+  {
+    title: "Location management for real-world businesses",
+    description:
+      "Organise where sessions happen so clients know exactly where to meet you.",
+    icon: MapPinned,
+  },
+  {
+    title: "Built to look credible from first click",
+    description:
+      "Show up with a more professional client experience without hiring a designer or building custom pages.",
+    icon: ShieldCheck,
+  },
+];
+
+const workflowSteps = [
+  {
+    step: "01",
+    title: "Present your offer clearly",
+    description:
+      "Profile, service details, and a shareable link all work together so the value is obvious before the client asks.",
+  },
+  {
+    step: "02",
+    title: "Let clients self-book",
+    description:
+      "People choose a time that fits your real schedule instead of waiting on manual replies and DMs.",
+  },
+  {
+    step: "03",
+    title: "Keep delivery organised",
+    description:
+      "Use one operating layer for sessions, locations, and repeat appointments instead of switching systems.",
+  },
+  {
+    step: "04",
+    title: "Scale without looking improvised",
+    description:
+      "As demand grows, your client-facing experience still feels structured, calm, and professional.",
+  },
+];
+
+const featureTiles = [
+  "Custom public profile with a direct booking link",
+  "Flexible availability management for changing schedules",
+  "Multiple coaching or meeting locations in one setup",
+  "Location-aware pricing already connected to the platform",
+  "Built for solo operators and growing service businesses",
+  "Designed to reduce admin drag so more time goes into delivery",
+];
+
 export default function Home() {
-  const hasScrolled = useRef(false); // Create a ref to track if the user has clicked to scroll
-  const [isMobile, setIsMobile] = useState(false);
-  const { status } = useSession();
-  const scrollToNextSection = () => {
-    const nextSection = document.getElementById("hi");
+  const { data: session, status } = useSession();
+
+  const scrollToSection = (sectionId) => {
+    const nextSection = document.getElementById(sectionId);
+
     if (nextSection) {
       nextSection.scrollIntoView({ behavior: "smooth" });
-      hasScrolled.current = true; // Set to true when user clicks to scroll
     }
   };
 
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 1024);
-    };
-    handleResize(); // Initial check
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
   if (status === "loading") {
     return (
-      <div className="flex justify-center items-center min-h-screen ">
-        <div className="flex flex-col justify-center items-center">
-          {/* Spinner */}
-          <div className="w-16 h-16 border-4 border-t-primary border-gray-300 rounded-full animate-spin"></div>
-          <div className="mt-4 text-primary text-xl font-semibold">
-            Loading...
-          </div>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center justify-center">
+          <div className="h-16 w-16 animate-spin rounded-full border-4 border-gray-300 border-t-primary"></div>
+          <div className="mt-4 text-xl font-semibold text-primary">Loading...</div>
         </div>
       </div>
     );
   }
 
+  const isCoach = session?.user?.role === "coach";
+  const hasCoachAccess =
+    isCoach &&
+    (session?.user?.paymentStatus === "active" ||
+      session?.user?.paymentStatus === "trialing");
+
+  const accountHref = hasCoachAccess
+    ? "/dashboard"
+    : session?.user?.role === "student"
+      ? "/student-dashboard"
+      : session?.user?.role === "admin"
+        ? "/bmpadmin/dashboard"
+        : "/auth/signup";
+
+  const accountLabel = hasCoachAccess
+    ? "Open Coach Dashboard"
+    : session?.user?.role === "student"
+      ? "Open Student Dashboard"
+      : session?.user?.role === "admin"
+        ? "Open Admin Dashboard"
+        : isCoach
+          ? "Choose Your Plan"
+          : "Create Your Free Account";
+
   return (
-    <>
-      <section>
-        <div>
-          <div className="h-screen ">
-            <video
-              className="object-cover h-full w-full absolute"
-              autoPlay
-              muted
-              loop
-              playsInline
-            >
-              <source src="/homeHeader.mp4" />
-            </video>
-            <div className="relative h-full  bg-black/50">
-              <div className="flex items-center  h-full">
-                <div className="container text-center mx-auto px-10 md:px-20 ">
-                  <div className="font-bold text-white text-[36px] lg:text-[54px]">
-                    Manage Your Coaching
+    <main className="bg-[#f5f1e8] text-[#10311f]">
+      <section className="relative isolate overflow-hidden">
+        <video
+          className="absolute inset-0 h-full w-full object-cover"
+          autoPlay
+          muted
+          loop
+          playsInline
+        >
+          <source src="/homeHeader.mp4" />
+        </video>
+        <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(1,53,27,0.90)_8%,rgba(1,53,27,0.72)_42%,rgba(1,53,27,0.35)_72%,rgba(1,53,27,0.82)_100%)]" />
+        <div className="home-grid-pattern absolute inset-0 opacity-50" />
+        <div className="home-radial-glow absolute left-[-10rem] top-[10rem] h-72 w-72 rounded-full bg-[#bfe3cb]/30 blur-3xl" />
+        <div className="home-radial-glow absolute bottom-[-8rem] right-[-4rem] h-80 w-80 rounded-full bg-[#f0d39d]/20 blur-3xl" />
+
+        <div className="container relative mx-auto flex min-h-screen items-center px-6 pb-16 pt-32 md:px-20 lg:pt-40">
+          <div className="grid w-full items-center gap-12 lg:grid-cols-[1.15fr_0.85fr]">
+            <div className="home-fade-up text-white">
+              <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-2 text-xs font-medium uppercase tracking-[0.24em] text-white/90 backdrop-blur-md sm:text-sm">
+                Booking infrastructure for service-led businesses
+              </div>
+
+              <h1 className="mt-6 max-w-5xl text-5xl font-semibold leading-[0.95] tracking-[-0.04em] sm:text-6xl lg:text-7xl">
+                Turn expertise into a booking experience people trust.
+              </h1>
+
+              <p className="mt-6 max-w-3xl text-lg font-light leading-8 text-white/88 sm:text-xl">
+                BookMePro helps coaches, personal trainers, sports instructors,
+                and consultants present their services better, manage
+                appointments cleanly, and look far more established from the
+                first click.
+              </p>
+
+              <div className="mt-8 flex flex-wrap items-center gap-4">
+                <Link
+                  href={accountHref}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#f2c66d] px-6 py-3 text-base font-semibold text-[#163322] transition-transform duration-300 hover:-translate-y-0.5"
+                >
+                  {accountLabel}
+                  <ArrowRight size={18} />
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => scrollToSection("pricing")}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-6 py-3 text-base font-medium text-white backdrop-blur-md transition-colors duration-300 hover:bg-white/16"
+                >
+                  See pricing
+                </button>
+              </div>
+
+              <div className="mt-10 hidden max-w-4xl flex-wrap gap-3 text-sm text-white/84 sm:flex sm:text-base">
+                <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2 backdrop-blur-md">
+                  Share one direct booking link
+                </div>
+                <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2 backdrop-blur-md">
+                  Manage multiple locations
+                </div>
+                <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2 backdrop-blur-md">
+                  Keep availability under control
+                </div>
+              </div>
+            </div>
+
+            <div className="relative home-fade-up-delayed">
+              <div className="absolute -inset-6 rounded-[2rem] bg-[#8ab89a]/20 blur-3xl" />
+              <div className="relative overflow-hidden rounded-[2rem] border border-white/20 bg-white/12 p-5 text-white shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+                <div className="rounded-[1.5rem] border border-white/15 bg-[#0c281a]/55 p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="mt-2 text-2xl font-semibold">
+                        Cleaner bookings. Stronger first impression.
+                      </div>
+                    </div>
                   </div>
-                  <div className="font-[275]  md:leading-[37.2px] text-white mx-auto max-w-4xl mt-4 lg:mt-9 text-[18px] md:text-[24px] lg:text-[31px]">
-                    Transform your coaching experience with our all-in-one
-                    platform. Seamlessly manage your schedule, set your
-                    locations, and showcase your profile to attract more
-                    students.
+
+                  <div className="mt-5 overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#f5f1e8]">
+                    <Image
+                      src="/images/about/SliderMain.png"
+                      width={1400}
+                      height={980}
+                      alt="Professionals using BookMePro to present and run their services"
+                      className="h-auto w-full object-cover"
+                      priority
+                    />
                   </div>
-                  <div className="font-[400] text-white mx-auto max-w-4xl mt-4 lg:mt-9   text-[18px] md:text-[24px] lg:text-[31px] pb-4">
-                    Get started today and simplify your coaching process.
-                  </div>
-                  <a
-                    href="#pricing"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      document.getElementById("pricing").scrollIntoView({
-                        behavior: "smooth",
-                      });
-                    }}
-                    className="bg-primary font-normal mt-4 lg:mt-9 rounded-[16px] text-white text-[16px] md:text-[18px] lg:text-[26px] py-3 px-5"
-                  >
-                    Create Your Free Coach Profile
-                  </a>
+                </div>
+              </div>
+
+              <div className="absolute bottom-40 -left-3 hidden max-w-xs rounded-[1.5rem] border border-[#dfe7da] bg-[#f7f4ec] p-4 text-[#163322] shadow-[0_20px_60px_rgba(12,37,22,0.18)] lg:block">
+                <div className="text-xs uppercase tracking-[0.22em] text-[#53745f]">
+                  Built for
+                </div>
+                <div className="mt-3 space-y-2 text-sm font-medium">
+                  <div>1:1 coaching and advisory sessions</div>
+                  <div>Recurring training programs</div>
+                  <div>In-person and multi-location services</div>
                 </div>
               </div>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => scrollToSection("explore")}
+            className="absolute bottom-8 left-1/2 hidden -translate-x-1/2 items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm text-white/90 backdrop-blur-md md:inline-flex"
+          >
+            Explore the platform
+            <ChevronDown size={16} />
+          </button>
         </div>
       </section>
 
-      <section>
-        <div className="mt-10 text-center pb-32 container mx-auto px-10 md:px-20 ">
-          <div className="text-[26px] md:text-[37px] text-primary font-bold">
-            Empowering Coaches to Focus on Coaching, Not Admin Work
+      <section id="explore" className="relative overflow-hidden py-20 sm:py-24">
+        <div className="container mx-auto px-6 md:px-20">
+          <div className="max-w-3xl">
+            <div className="text-sm font-medium uppercase tracking-[0.28em] text-[#53745f]">
+              Broader than coaching software
+            </div>
+            <h2 className="mt-4 text-4xl font-semibold tracking-[-0.03em] text-[#143521] sm:text-5xl">
+              The same booking problem shows up across more industries than most platforms admit.
+            </h2>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-[#365542]">
+              If your business depends on sessions, appointments, or recurring
+              client time, the challenge is the same: look credible, stay easy
+              to book, and keep the admin load from swallowing your week.
+            </p>
           </div>
-          <div className="font-normal mt-4 text-[22px] text-primary">
-            Scroll Down
-          </div>
-          <div>
-            <div className="w-full mt-4 flex items-center justify-center">
-              <div
-                className="w-6 cursor-pointer "
-                onClick={scrollToNextSection}
+
+          <div className="mt-12 grid gap-5 lg:grid-cols-4">
+            {audienceCards.map(({ title, description, icon: Icon }) => (
+              <article
+                key={title}
+                className="rounded-[1.75rem] border border-[#d8e3d8] bg-[#fbfaf6] p-6 shadow-[0_18px_60px_rgba(16,49,31,0.07)] transition-transform duration-300 hover:-translate-y-1"
               >
-                <ChevronsUpDown
-                  width={24}
-                  height={24}
-                  style={{ color: "#037D40" }}
-                />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e2efe5] text-primary">
+                  <Icon size={22} />
+                </div>
+                <h3 className="mt-5 text-2xl font-semibold text-[#143521]">
+                  {title}
+                </h3>
+                <p className="mt-3 text-base leading-7 text-[#486651]">
+                  {description}
+                </p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+     <section className="pb-20 sm:pb-24">
+        <div className="container mx-auto px-6 md:px-20">
+          <div className="grid items-center gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16">
+            <div className="relative lg:self-end">
+              <div className="absolute -inset-6 rounded-[2rem] bg-[#b9d8c0]/35 blur-3xl" />
+              <div className="relative overflow-hidden rounded-[2rem] border border-[#dce6da] bg-white p-4 shadow-[0_20px_70px_rgba(16,49,31,0.10)]">
+                <div className="overflow-hidden rounded-[1.5rem]">
+                  <Image
+                    src="/images/home/sitting-table-working-cafe.jpg"
+                    width={1200}
+                    height={900}
+                    alt="Coach presenting services in a more professional way"
+                    className="h-96 w-full object-cover"
+                  />
+                </div>
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-[1.25rem] bg-[#10311f] p-4 text-white">
+                    <div className="text-xs uppercase tracking-[0.2em] text-[#b2ceb9]">
+                      Positioning
+                    </div>
+                    <div className="mt-2 text-lg font-semibold">
+                      Show what you do without sending six follow-up messages.
+                    </div>
+                  </div>
+                  <div className="rounded-[1.25rem] bg-[#eef5ef] p-4 text-[#163322]">
+                    <div className="text-xs uppercase tracking-[0.2em] text-[#587261]">
+                      Operations
+                    </div>
+                    <div className="mt-2 text-lg font-semibold">
+                      Keep bookings and locations in sync with real delivery.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h2 className="mt-4 text-4xl font-semibold tracking-[-0.03em] text-[#143521] sm:text-5xl">
+                A System That Works With Your Business
+              </h2>
+              <div className="mt-8 grid gap-4">
+                {platformHighlights.map(({ title, description, icon: Icon }) => (
+                  <div
+                    key={title}
+                    className="flex gap-4 rounded-[1.5rem] border border-[#d8e3d8] bg-[#fbfaf6] p-5"
+                  >
+                    <div className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#e2efe5] text-primary">
+                      <Icon size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-semibold text-[#143521]">
+                         {title}
+                      </h3>
+                      <p className="mt-2 text-base leading-7 text-[#486651]">
+                        {description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section>
-        <div className="container pb-32 mx-auto px-10 md:px-20 ">
-          <div className="grid grid-cols-1 items-center gap-20 lg:grid-cols-2">
+      <section className="bg-[#10311f] py-20 text-white sm:py-24">
+        <div className="container mx-auto px-6 md:px-20">
+          <div className="grid items-start gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
             <div>
-              <div className="w-full ">
+              <div className="text-sm font-medium uppercase tracking-[0.28em] text-[#b8d6bf]">
+                How the flow should feel
+              </div>
+              <h2 className="mt-4 text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">
+                From discovery to repeat bookings, the experience should stay calm and obvious.
+              </h2>
+              <p className="mt-5 max-w-xl text-lg leading-8 text-white/76">
+                Most service businesses do not need more tools. They need one
+                coherent path that helps prospects understand the offer and book
+                without friction.
+              </p>
+
+              <div className="mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 p-4">
                 <Image
-                  src="/images/home/soccer.png"
-                  width={1000}
-                  height={500}
-                  layout="responsive"
-                  alt="soccer"
+                  src="/images/home/unsplash.png"
+                  width={1200}
+                  height={900}
+                  alt="Client-friendly booking experience"
+                  className="h-auto w-full rounded-[1.4rem] object-cover"
                 />
               </div>
             </div>
-            <div className="">
-              <div className="text-black font-normal text-[37px] leading-[44.4px] mx-auto max-w-2xl text-center">
-                Our mission is to earn coaches&apos; trust by helping them
-                effortlessly manage their schedules and connect with both
-                existing and new students. Join us and watch your coaching
-                business thrive!.
-              </div>
-              <div className="flex justify-center mt-16">
-                <Link
-                  href="auth/signup"
-                  className="bg-primary  rounded-xl font-normal  text-2xl text-white py-4 px-8 "
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {workflowSteps.map(({ step, title, description }) => (
+                <article
+                  key={step}
+                  className="rounded-[1.75rem] border border-white/10 bg-white/6 p-6 backdrop-blur-sm"
                 >
-                  Join with Our Team
+                  <div className="text-sm font-semibold tracking-[0.24em] text-[#f2c66d]">
+                    {step}
+                  </div>
+                  <h3 className="mt-4 text-2xl font-semibold">{title}</h3>
+                  <p className="mt-3 text-base leading-7 text-white/75">
+                    {description}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="py-20 sm:py-24">
+        <div className="container mx-auto px-6 md:px-20">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="text-sm font-medium uppercase tracking-[0.28em] text-[#53745f]">
+                Designed around real use cases
+              </div>
+              <h2 className="mt-4 text-4xl font-semibold tracking-[-0.03em] text-[#143521] sm:text-5xl">
+                Why the booking experience should be more than a calendar view.
+              </h2>
+            </div>
+            <p className="max-w-xl text-lg leading-8 text-[#365542]">
+              This is the operational layer behind a more credible front door.
+              It should help you book faster now and still hold up when demand
+              becomes less predictable.
+            </p>
+          </div>
+
+          <div className="mt-12 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="overflow-hidden rounded-[2rem] border border-[#d8e3d8] bg-white p-4 shadow-[0_20px_70px_rgba(16,49,31,0.09)]">
+              <Image
+                src="/images/home/booking-graphic-vec.jpg"
+                width={1400}
+                height={960}
+                alt="Flexible service scheduling"
+                className="h-auto w-full rounded-[1.5rem] object-cover"
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+              {featureTiles.map((feature) => (
+                <div
+                  key={feature}
+                  className="rounded-[1.5rem] border border-[#d8e3d8] bg-[#fbfaf6] px-5 py-5 text-lg font-medium leading-7 text-[#163322] shadow-[0_14px_40px_rgba(16,49,31,0.05)]"
+                >
+                  {feature}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="pb-20 sm:pb-24">
+        <div className="container mx-auto px-6 md:px-20">
+          <div className="overflow-hidden rounded-[2.25rem] border border-[#d8e3d8] bg-[linear-gradient(135deg,#f8f5ee_0%,#edf5ef_100%)] p-6 shadow-[0_24px_80px_rgba(16,49,31,0.08)] sm:p-8 lg:p-10">
+            <div className="max-w-3xl">
+              <h2 className="mt-4 text-4xl font-semibold tracking-[-0.03em] text-[#143521] sm:text-5xl">
+                Start lean, then expand when the business demands it.
+              </h2>
+            </div>
+
+            <div className="mt-8 rounded-[1.75rem] border border-white/80 bg-white/90">
+              <Pricing />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="pb-24">
+        <div className="container mx-auto px-6 md:px-20">
+          <div className="overflow-hidden rounded-[2.25rem] bg-[linear-gradient(135deg,#10311f_0%,#184e31_50%,#2d6a47_100%)] px-6 py-10 text-white shadow-[0_24px_80px_rgba(9,30,18,0.28)] sm:px-8 lg:px-12 lg:py-12">
+            <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div>
+                <div className="text-sm font-medium uppercase tracking-[0.28em] text-[#b8d6bf]">
+                  Final thought
+                </div>
+                <h2 className="mt-4 max-w-3xl text-4xl font-semibold tracking-[-0.03em] sm:text-5xl">
+                  If the business already runs on relationships, the booking experience should reflect that level of professionalism.
+                </h2>
+                <p className="mt-5 max-w-2xl text-lg leading-8 text-white/76">
+                  Use BookMePro to replace improvised scheduling with something
+                  clients can trust at a glance.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-4 lg:justify-end">
+                <Link
+                  href={accountHref}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#f2c66d] px-6 py-3 text-base font-semibold text-[#163322] transition-transform duration-300 hover:-translate-y-0.5"
+                >
+                  {accountLabel}
+                  <ArrowRight size={18} />
+                </Link>
+                <Link
+                  href="/contact"
+                  className="inline-flex items-center rounded-full border border-white/20 px-6 py-3 text-base font-medium text-white/92 transition-colors duration-300 hover:bg-white/10"
+                >
+                  Talk to us
                 </Link>
               </div>
             </div>
           </div>
         </div>
       </section>
-
-      <section>
-        <div className="container pb-32 mx-auto px-10 md:px-20">
-          <div className="grid items-center gap-20 lg:grid-cols-2">
-            <div className="order-1 lg:order-2">
-              <div className="w-full">
-                <Image
-                  src="/images/home/unsplash.png"
-                  width={1000}
-                  height={500}
-                  layout="responsive"
-                  alt="soccer"
-                />
-              </div>
-            </div>
-
-            <div className="order-2 lg:order-1 text-center lg:text-left">
-              <div className="text-black font-bold text-[37px]">
-                Why Choose Us?
-              </div>
-              <div className="text-black text-lg md:text-[26px] leading-[31.2px] font-[275] mt-12">
-                As a coach, your time is valuable, and your expertise deserves
-                to be showcased. Our platform is designed with you in mind,
-                providing the tools you need to manage your coaching business
-                effortlessly. With our intuitive interface, you can focus on
-                what you do best – coaching – while we take care of the rest.
-                Here&apos;s why thousands of coaches are choosing us to elevate
-                their coaching careers:
-              </div>
-              <div className="mt-8 text-left">
-                <ul className="list-disc text-left list-inside">
-                  <li className="text-black text-lg md:text-[26px] leading-[31.2px] font-[275]">
-                    <span className="font-normal">Simplified Scheduling:</span>{" "}
-                    Effortlessly manage your coaching schedule and update your
-                    availability in real-time.
-                  </li>
-                  <li className="text-black text-lg md:text-[26px] leading-[31.2px] font-[275]">
-                    <span className="font-normal">Location Flexibility:</span>{" "}
-                    Set and manage multiple coaching locations with ease, making
-                    it simple for students to find and book you.This feature is
-                    under development and will be available soon.
-                  </li>
-                  <li className="text-black text-lg md:text-[26px] leading-[31.2px] font-[275]">
-                    <span className="font-normal">Boost Your Visibility:</span>{" "}
-                    Create a detailed coach profile that showcases your
-                    expertise, making it easier for students to discover and
-                    book your services.
-                  </li>
-                  <li className="text-black text-lg md:text-[26px] leading-[31.2px] font-[275]">
-                    <span className="font-normal">
-                      Showcase Your Own Booking Link:
-                    </span>{" "}
-                    Share your unique booking link with students, allowing them
-                    to book sessions directly. You can share your own custom
-                    profile link with students via social media, website, etc.,
-                    making it easy for them to find and book you.
-                  </li>
-                  <li className="text-black text-lg md:text-[26px] leading-[31.2px] font-[275]">
-                    <span className="font-normal">
-                      Full Refund Guarantee - No Questions Asked:
-                    </span>{" "}
-                    We offer a 100% refund for any unused portion of your fees.
-                    If you decide not to use our services, you&apos;re entitled
-                    to a refund without needing to provide any reason.
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section>
-        <div className="container pb-32 mx-auto px-10 md:px-20 ">
-          <div className="grid items-center gap-20 grid-cols-1 lg:grid-cols-2">
-            <div className={isMobile ? "order-2" : "order-1"}>
-              <div className="w-full ">
-                <Image
-                  src="/images/home/basket_ball.png"
-                  width={1000}
-                  height={500}
-                  layout="responsive"
-                  alt="soccer"
-                />
-              </div>
-            </div>
-            <div className={isMobile ? "order-2 mb-8" : "order-1"}>
-              <div className="text-[37px] font-bold text-black leading-[44.4px] text-center lg:text-left ">
-                Platform Features Tailored for Coaches
-              </div>
-              <div className="text-black text-lg md:text-[26px] leading-[31.2px] font-[275] mt-12">
-                Our platform is packed with features that cater specifically to
-                the needs of coaches and their students. Whether you are
-                managing multiple locations or ensuring seamless communication
-                with your players, weve got everything you need in one place.
-                Explore the tools that will revolutionize how you manage your
-                coaching business:
-              </div>
-              <div className="mt-8">
-                <ul className="list-disc list-inside ">
-                  <li className="text-black  text-lg md:text-[26px] leading-[31.2px] font-[275] ">
-                    <span className="text-black text-lg md:text-[26px] leading-[31.2px] font-normal">
-                      {" "}
-                      Customisable Coaching Profiles:
-                    </span>{" "}
-                    Highlight your skills, certifications, and experience.
-                  </li>
-                  <li className="text-black  text-lg md:text-[26px] leading-[31.2px] font-[275] ">
-                    <span className="text-black text-lg md:text-[26px] leading-[31.2px] font-normal">
-                      Real-Time Booking System:
-                    </span>{" "}
-                    Students can see your availability and book sessions
-                    instantly.
-                  </li>
-                  <li className="text-black  text-lg md:text-[26px] leading-[31.2px] font-[275] ">
-                    <span className="text-black text-lg md:text-[26px] leading-[31.2px] font-normal">
-                      {" "}
-                      Location Management:
-                    </span>{" "}
-                    Add and manage different coaching locations from a single
-                    dashboard.
-                  </li>
-                  <li className="text-black text-lg md:text-[26px] leading-[31.2px] font-[275] ">
-                    <span className="text-black text-lg md:text-[26px] leading-[31.2px] font-normal">
-                      Automated Reminders:
-                    </span>{" "}
-                    Ensure both you and your students never miss a session. This
-                    feature is under development and will be available soon.
-                  </li>
-                  <li className="text-black  text-lg md:text-[26px] leading-[31.2px] font-[275] ">
-                    <span className="text-black text-lg md:text-[26px] leading-[31.2px] font-normal">
-                      Own Dedicated Page with a Customisable URL:{" "}
-                    </span>
-                    Create a unique page that showcases your coaching services,
-                    making it easy for students to find and book you.
-                  </li>
-                  {/* <li className="text-black  text-lg md:text-[26px] leading-[31.2px] font-[275] ">
-                    <span className="text-black text-lg md:text-[26px] leading-[31.2px] font-normal">
-                      Payment Integration:{" "}
-                    </span>
-                    Secure and straightforward payment processing within the
-                    platform.
-                  </li> */}
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <>
-        <style jsx global>{`
-          @media (max-width: 1023px) {
-            .mobile-reverse {
-              display: flex;
-              flex-direction: column-reverse;
-            }
-          }
-        `}</style>
-
-        {/* Proven Success Section */}
-        <section className="hidden">
-          <div className="container pb-10 mx-auto px-10 md:px-20">
-            <div className="grid items-center gap-10 lg:grid-cols-2">
-              {/* Text Section */}
-              <div className="order-2 lg:order-1">
-                <div className="text-[37px] font-bold text-black leading-[44.4px] text-center lg:text-left">
-                  Proven Success for Coaches Like You
-                </div>
-                <div className="pl-3 mt-8 space-y-3">
-                  <div className="text-black text-lg md:text-[26px] leading-[31.2px] font-normal tracking-widest">
-                    98% of coaches report improved scheduling efficiency.
-                  </div>
-                  <div className="text-black text-lg md:text-[26px] leading-[31.2px] font-normal tracking-widest">
-                    85% of coaches have seen an increase in student bookings
-                    within the first month.
-                  </div>
-                  <div className="text-black text-lg md:text-[26px] leading-[31.2px] font-normal tracking-widest">
-                    Attend the session and enjoy the experience.
-                  </div>
-                </div>
-              </div>
-
-              {/* Image Section */}
-              <div className="order-1 lg:order-2 flex justify-center">
-                <div className="w-full lg:w-3/4">
-                  <Image
-                    src="/images/home/search.png"
-                    width={1000}
-                    height={500}
-                    layout="responsive"
-                    alt="Basket ball"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <div className="container pb-32 mx-auto px-10 md:px-20 ">
-            <Pricing/>
-          </div>
-        </section>
-
-        <section id="hi" className="hidden">
-          <div className="container mb-24 md:mb-0  mx-auto px-10 md:px-20 ">
-            <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2">
-              <div className="flex w-full justify-center items-center">
-                <div className="w-full  ">
-                  <Image
-                    src="/images/home/cricketer.png"
-                    width={0}
-                    height={0}
-                    layout="responsive"
-                    alt="soccer"
-                  />
-                </div>
-              </div>
-              <div className="">
-                <div className="text-5xl font-bold text-black ">
-                  Testimonials
-                </div>
-                <div className="mt-4">
-                  <div className="w-1/6 ">
-                    <Image
-                      src="/images/home/ci_double-quotes-l.png"
-                      width={0}
-                      height={0}
-                      layout="responsive"
-                      alt="soccer"
-                    />
-                  </div>
-                </div>
-                <div className="pb-10">
-                  <TestimonialSlider />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      </>
-    </>
+    </main>
   );
 }

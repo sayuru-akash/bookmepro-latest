@@ -86,3 +86,48 @@ body {
   clip-path: polygon(0 0, 100% 0%, 100% 85%, 0% 100%);
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+.home-grid-pattern {
+  background-image: linear-gradient(
+      rgba(255, 255, 255, 0.06) 1px,
+      transparent 1px
+    ),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 72px 72px;
+  background-position: center;
+}
+
+.home-fade-up {
+  animation: home-fade-up 0.8s ease-out both;
+}
+
+.home-fade-up-delayed {
+  animation: home-fade-up 0.95s ease-out 0.15s both;
+}
+
+@keyframes home-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .home-fade-up,
+  .home-fade-up-delayed {
+    animation: none;
+  }
+}
+

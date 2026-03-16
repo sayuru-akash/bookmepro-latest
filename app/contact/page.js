@@ -330,41 +330,6 @@ export default function MyContactPage() {
               </p>
             )}
           </div>
-
-          {/* Social Media Section */}
-          <div className="mt-12 sm:mt-16">
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12">
-              <p className="text-black text-2xl sm:text-3xl font-bold">
-                Follow Us On
-              </p>
-              <div className="flex gap-6 text-primary">
-                <a
-                  href="https://facebook.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="transition-colors hover:text-primary/80"
-                >
-                  <FaFacebookF className="w-6 h-6 sm:w-8 sm:h-8" />
-                </a>
-                <a
-                  href="https://instagram.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="transition-colors hover:text-primary/80"
-                >
-                  <FaInstagram className="w-6 h-6 sm:w-8 sm:h-8" />
-                </a>
-                <a
-                  href="https://linkedin.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="transition-colors hover:text-primary/80"
-                >
-                  <FaLinkedinIn className="w-6 h-6 sm:w-8 sm:h-8" />
-                </a>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
     </>

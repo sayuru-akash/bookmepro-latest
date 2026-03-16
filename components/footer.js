@@ -46,14 +46,14 @@ export default function Footer() {
             </div>
 
             {/* Newsletter Section */}
-            <div className="text-center md:text-left">
+            {/* <div className="text-center md:text-left">
               <div className="text-white text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold">
                 Subscribe to the newsletter
               </div>
               <div className="mt-4">
                 <SubscribeSection />
               </div>
-            </div>
+            </div> */}
           </div>
 
           {/* Divider */}
@@ -63,13 +63,13 @@ export default function Footer() {
           <div className="flex flex-col sm:flex-row justify-between items-center font-light text-white text-xs sm:text-sm md:text-base lg:text-lg">
             {/* Left Side */}
             <div className="mb-4 sm:mb-0">
-              © 2025 Rinash Global Booking. All rights reserved.
+              © 2026 Rinash Global Booking. All rights reserved.
             </div>
 
             {/* Right Side - Social Media Icons */}
             <div className="flex space-x-4 sm:space-x-6">
               <a
-                href="https://facebook.com"
+                href="https://facebook.com/bookmepro.au"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-gray-400"
@@ -85,15 +85,15 @@ export default function Footer() {
                 <FiX className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8" />
               </a> */}
               <a
-                href="https://instagram.com"
+                href="https://facebook.com/bookmeprosl/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-gray-400"
               >
-                <FaInstagram className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8" />
+                <FaFacebookF className="w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8" />
               </a>
               <a
-                href="https://linkedin.com"
+                href="https://www.linkedin.com/in/rizvi-wahid-3ba6b332/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-gray-400"
