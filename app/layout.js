@@ -33,7 +33,7 @@ export const metadata = {
     locale: "en_AU",
     images: [
       {
-        url: "/images/about/SliderMain.png",
+        url: "/images/about/tbltennis.jpg",
         width: 1200,
         height: 630,
         alt: "BookMePro",
@@ -42,7 +42,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    images: ["/images/about/SliderMain.png"],
+    images: ["/images/about/tbltennis.jpg"],
   },
   icons: {
     icon: "/images/iconmark-bmp.ico",

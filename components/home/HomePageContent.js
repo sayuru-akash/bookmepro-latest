@@ -179,7 +179,7 @@ export default function HomePageContent() {
 
                   <div className="mt-5 overflow-hidden rounded-[1.25rem] border border-white/10 bg-[#f5f1e8]">
                     <Image
-                      src="/images/about/SliderMain.png"
+                      src="/images/about/tbltennis.jpg"
                       width={1400}
                       height={980}
                       alt="Professionals using BookMePro to present and run their services"

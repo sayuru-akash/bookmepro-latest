@@ -15,7 +15,7 @@ export const metadata = {
     type: "website",
     images: [
       {
-        url: "/images/about/SliderMain.png",
+        url: "/images/about/tbltennis.jpg",
         width: 1200,
         height: 630,
         alt: "BookMePro platform preview",
@@ -27,7 +27,7 @@ export const metadata = {
     title: "BookMePro | Coaching and Service Booking Platform",
     description:
       "Professional booking infrastructure for coaches, trainers, instructors, and consultants.",
-    images: ["/images/about/SliderMain.png"],
+    images: ["/images/about/tbltennis.jpg"],
   },
 };
 

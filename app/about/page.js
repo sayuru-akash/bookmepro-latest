@@ -17,7 +17,7 @@ export const metadata = {
     type: "website",
     images: [
       {
-        url: "/images/about/SliderMain.png",
+        url: "/images/about/tbltennis.jpg",
         width: 1200,
         height: 630,
         alt: "About BookMePro",
@@ -29,7 +29,7 @@ export const metadata = {
     title: "About BookMePro",
     description:
       "Vision, mission, and platform focus for service-based businesses.",
-    images: ["/images/about/SliderMain.png"],
+    images: ["/images/about/tbltennis.jpg"],
   },
 };
 
@@ -63,7 +63,7 @@ export default function About() {
           <div className="grid auto-rows-[150px] gap-4 sm:auto-rows-[180px] lg:grid-cols-6 lg:auto-rows-[120px]">
             <div className="relative overflow-hidden rounded-[1.75rem] border border-[#d8e3d8] bg-white shadow-[0_16px_45px_rgba(16,49,31,0.08)] lg:col-span-2 lg:row-span-3">
               <Image
-                src="/images/about/SliderMain.png"
+                src="/images/about/tbltennis.jpg"
                 alt="BookMePro platform presentation"
                 fill
                 className="object-cover"
