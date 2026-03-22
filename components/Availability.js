@@ -5,12 +5,13 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import { DatePicker, MobileTimePicker } from "@mui/x-date-pickers";
+import { DatePicker } from "@mui/x-date-pickers";
 import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
 import { useRouter } from "next/navigation";
 import Typography from "@mui/material/Typography";
 import { TimePicker } from "@mui/x-date-pickers/TimePicker";
+import { renderMultiSectionDigitalClockTimeView } from "@mui/x-date-pickers/timeViewRenderers";
 import {
   Table,
   TableBody,
@@ -597,6 +598,10 @@ const AdminCalendar = ({ timezone: propTimezone }) => {
                     defaultValue={dayjs("2022-04-17T15:30")}
                     value={startTime}
                     onChange={(newValue) => setStartTime(newValue)}
+                    viewRenderers={{
+                      hours: renderMultiSectionDigitalClockTimeView,
+                      minutes: renderMultiSectionDigitalClockTimeView,
+                    }}
                   />
                 </Grid>
                 <Grid item xs={6}>
@@ -605,6 +610,10 @@ const AdminCalendar = ({ timezone: propTimezone }) => {
                     defaultValue={dayjs("2022-04-17T16:30")}
                     value={endTime}
                     onChange={(newValue) => setEndTime(newValue)}
+                    viewRenderers={{
+                      hours: renderMultiSectionDigitalClockTimeView,
+                      minutes: renderMultiSectionDigitalClockTimeView,
+                    }}
                   />
                 </Grid>
               </Grid>
