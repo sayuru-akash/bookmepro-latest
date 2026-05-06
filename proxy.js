@@ -1,4 +1,4 @@
-// middleware.js
+// proxy.js
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import { getCountryFromIP } from "./Lib/location";
@@ -19,7 +19,7 @@ export async function verifyTokenAndAuthorization(req) {
   return true;
 }
 
-export default async function middleware(req) {
+export default async function proxy(req) {
   let countryCode = req.cookies.get("user-country")?.value;
 
   // Only perform the expensive IP lookup if the cookie is not present.
@@ -62,7 +62,7 @@ export default async function middleware(req) {
   return response;
 }
 
-// Apply middleware to all routes to detect country, but only protect dashboard
+// Apply proxy to all routes to detect country, but only protect dashboard
 export const config = {
   matcher: [
     // Match all routes except static files and API routes
