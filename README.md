@@ -193,6 +193,7 @@ The source of truth is .env.example.
 | STRIPE_SECRET | Optional | Legacy fallback key |
 | STRIPE_WEBHOOK_SECRET | Yes | Stripe webhook validation |
 | BREVO_API_KEY | Yes | Email sending |
+| CRON_SECRET | Recommended | Protecting Vercel cron endpoints |
 | CLOUDINARY_CLOUD_NAME | Yes | Media provider config |
 | CLOUDINARY_API_KEY | Yes | Media provider config |
 | CLOUDINARY_API_SECRET | Yes | Media provider config |
@@ -205,6 +206,8 @@ The source of truth is .env.example.
 
 - Use HTTPS URLs for all public/auth URL variables.
 - Use long random secrets for NEXTAUTH_SECRET and JWT_SECRET.
+- Set CRON_SECRET in Vercel production so scheduled reminder routes only accept Vercel cron invocations.
+- The hour-before reminder route is not scheduled in vercel.json by default because it needs frequent execution. Schedule /api/cron/send-hour-before-emails every few minutes only on Vercel Pro or through an external scheduler.
 - Restrict and rotate provider keys regularly.
 - Keep environment values isolated per environment (dev/staging/prod).
 

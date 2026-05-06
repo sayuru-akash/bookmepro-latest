@@ -13,11 +13,15 @@ import "react-toastify/dist/ReactToastify.css";
 export default function CustomizedDataGrid() {
   const [rows, setRows] = useState([]);
   const [columns, setColumns] = useState([]);
+  const [viewportWidth, setViewportWidth] = useState(1024);
   const [paginationModel, setPaginationModel] = useState({
     page: 0,
     pageSize: 5,
   });
   const { data: session } = useSession();
+  const isSmallScreen = viewportWidth < 600;
+  const isMobileScreen = viewportWidth < 768;
+  const isVerySmallScreen = viewportWidth < 400;
 
   const handleAction = useCallback(async (row, newStatus) => {
     try {
@@ -104,6 +108,15 @@ export default function CustomizedDataGrid() {
   }, []);
 
   useEffect(() => {
+    const updateViewportWidth = () => setViewportWidth(window.innerWidth);
+
+    updateViewportWidth();
+    window.addEventListener("resize", updateViewportWidth);
+
+    return () => window.removeEventListener("resize", updateViewportWidth);
+  }, []);
+
+  useEffect(() => {
     const fetchAppointments = async () => {
       if (!session || !session.user || !session.user.id) return; // Ensure session and user data are available
       try {
@@ -127,7 +140,7 @@ export default function CustomizedDataGrid() {
             flex: 1.2, 
             minWidth: 150,
             fontFamily: "Kanit, sans-serif",
-            hide: window.innerWidth < 768, // Hide on mobile
+            hide: isMobileScreen, // Hide on mobile
           },
           { 
             field: "phone", 
@@ -135,7 +148,7 @@ export default function CustomizedDataGrid() {
             flex: 1, 
             minWidth: 120,
             fontFamily: "Kanit, sans-serif",
-            hide: window.innerWidth < 600, // Hide on small screens
+            hide: isSmallScreen, // Hide on small screens
           },
           { 
             field: "date", 
@@ -163,56 +176,56 @@ export default function CustomizedDataGrid() {
               <div
                 style={{
                   display: "flex",
-                  gap: window.innerWidth < 600 ? "4px" : "8px",
+                  gap: isSmallScreen ? "4px" : "8px",
                   alignItems: "center",
                   justifyContent: "center",
                   width: "100%",
                   height: "100%",
                   fontFamily: "Kanit, sans-serif",
-                  flexWrap: window.innerWidth < 400 ? "wrap" : "nowrap",
+                  flexWrap: isVerySmallScreen ? "wrap" : "nowrap",
                 }}
               >
                 <Button
                   sx={{
                     bgcolor: "#D50000",
                     color: "white",
-                    px: window.innerWidth < 600 ? 1 : 2,
+                    px: isSmallScreen ? 1 : 2,
                     py: 0.5,
-                    minWidth: window.innerWidth < 600 ? "auto" : "80px",
-                    fontSize: window.innerWidth < 600 ? "0.75rem" : "0.875rem",
+                    minWidth: isSmallScreen ? "auto" : "80px",
+                    fontSize: isSmallScreen ? "0.75rem" : "0.875rem",
                     "&:hover": { bgcolor: "#B20000" },
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: window.innerWidth < 600 ? 0.5 : 1,
+                    gap: isSmallScreen ? 0.5 : 1,
                     fontFamily: "Kanit, sans-serif",
                   }}
                   size="small"
                   onClick={() => handleAction(params.row, "Declined")}
                 >
-                  {window.innerWidth < 600 ? "" : "Decline"}
-                  <CircleX size={window.innerWidth < 600 ? 16 : 20} />
+                  {isSmallScreen ? "" : "Decline"}
+                  <CircleX size={isSmallScreen ? 16 : 20} />
                 </Button>
                 <Button
                   sx={{
                     bgcolor: "#037D40",
                     color: "white",
-                    px: window.innerWidth < 600 ? 1 : 2,
+                    px: isSmallScreen ? 1 : 2,
                     py: 0.5,
-                    minWidth: window.innerWidth < 600 ? "auto" : "80px",
-                    fontSize: window.innerWidth < 600 ? "0.75rem" : "0.875rem",
+                    minWidth: isSmallScreen ? "auto" : "80px",
+                    fontSize: isSmallScreen ? "0.75rem" : "0.875rem",
                     "&:hover": { bgcolor: "#025b2e" },
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: window.innerWidth < 600 ? 0.5 : 1,
+                    gap: isSmallScreen ? 0.5 : 1,
                     fontFamily: "Kanit, sans-serif",
                   }}
                   size="small"
                   onClick={() => handleAction(params.row, "Approved")}
                 >
-                  {window.innerWidth < 600 ? "" : "Approve"}
-                  <CircleCheck size={window.innerWidth < 600 ? 16 : 20} />
+                  {isSmallScreen ? "" : "Approve"}
+                  <CircleCheck size={isSmallScreen ? 16 : 20} />
                 </Button>
               </div>
             ),
@@ -238,7 +251,7 @@ export default function CustomizedDataGrid() {
     };
 
     fetchAppointments();
-  }, [session, handleAction]);
+  }, [session, handleAction, isMobileScreen, isSmallScreen, isVerySmallScreen]);
 
   const handlePaginationModelChange = (newModel) => {
     setPaginationModel(newModel);
@@ -261,7 +274,7 @@ export default function CustomizedDataGrid() {
         gap: '10px'
       }}>
         <h2 style={{ 
-          fontSize: window.innerWidth < 600 ? '1.1rem' : '1.25rem', 
+          fontSize: isSmallScreen ? '1.1rem' : '1.25rem',
           fontWeight: 700,
           margin: 0,
           fontFamily: "Kanit, sans-serif",
@@ -271,7 +284,7 @@ export default function CustomizedDataGrid() {
         <a href="/dashboard/my-bookings" style={{ 
           color: '#037D40', 
           textDecoration: 'none',
-          fontSize: window.innerWidth < 600 ? '0.9rem' : '1rem',
+          fontSize: isSmallScreen ? '0.9rem' : '1rem',
           fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
@@ -296,7 +309,7 @@ export default function CustomizedDataGrid() {
             checkboxSelection={false}
             rows={rows}
             columns={columns}
-            rowHeight={window.innerWidth < 600 ? 70 : 60}
+            rowHeight={isSmallScreen ? 70 : 60}
             paginationModel={paginationModel}
             onPaginationModelChange={handlePaginationModelChange}
             pageSizeOptions={[5]}
@@ -342,9 +355,9 @@ export default function CustomizedDataGrid() {
               },
               '& .MuiDataGrid-cell': {
                 border: 'none',
-                fontSize: window.innerWidth < 600 ? '0.8rem' : '0.875rem',
+                fontSize: isSmallScreen ? '0.8rem' : '0.875rem',
                 fontFamily: "Kanit, sans-serif",
-                padding: window.innerWidth < 600 ? '0 4px' : '0 16px',
+                padding: isSmallScreen ? '0 4px' : '0 16px',
                 '&:focus': {
                   outline: 'none'
                 },
@@ -357,11 +370,11 @@ export default function CustomizedDataGrid() {
                 border: 'none',
                 borderRadius: '8px 8px 0 0',
                 fontFamily: "Kanit, sans-serif",
-                fontSize: window.innerWidth < 600 ? '0.75rem' : '0.875rem',
+                fontSize: isSmallScreen ? '0.75rem' : '0.875rem',
                 fontWeight: 800,
                 color: '#037D40',
                 '& .MuiDataGrid-columnHeader': {
-                  padding: window.innerWidth < 600 ? '8px 4px' : '12px 16px',
+                  padding: isSmallScreen ? '8px 4px' : '12px 16px',
                   '&:focus': {
                     outline: 'none'
                   },
@@ -385,11 +398,11 @@ export default function CustomizedDataGrid() {
                 fontFamily: "Kanit, sans-serif",
                 '& .MuiTablePagination-root': {
                   fontFamily: "Kanit, sans-serif",
-                  fontSize: window.innerWidth < 600 ? '0.75rem' : '0.875rem',
+                  fontSize: isSmallScreen ? '0.75rem' : '0.875rem',
                 },
                 '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
                   fontFamily: "Kanit, sans-serif",
-                  fontSize: window.innerWidth < 600 ? '0.75rem' : '0.875rem',
+                  fontSize: isSmallScreen ? '0.75rem' : '0.875rem',
                 },
                 '& .MuiIconButton-root': {
                   color: '#037D40',
@@ -428,7 +441,7 @@ export default function CustomizedDataGrid() {
           style={{ 
             textAlign: "center", 
             marginTop: "20px", 
-            fontSize: window.innerWidth < 600 ? "16px" : "18px",
+            fontSize: isSmallScreen ? "16px" : "18px",
             fontFamily: "Kanit, sans-serif",
             color: "#6B7280",
             backgroundColor: "#E6F2EC",
@@ -438,7 +451,7 @@ export default function CustomizedDataGrid() {
           }}
         >
           <div style={{ 
-            fontSize: window.innerWidth < 600 ? "48px" : "64px",
+            fontSize: isSmallScreen ? "48px" : "64px",
             marginBottom: "16px",
             opacity: 0.5 
           }}>

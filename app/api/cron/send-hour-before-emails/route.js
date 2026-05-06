@@ -4,9 +4,13 @@ import { NextResponse } from "next/server";
 import { DateTime } from "luxon";
 import connectToDatabase from "../../../../Lib/mongodb";
 import { sendEmail } from "../../../../utils/sendEmail";
+import { isAuthorizedCronRequest } from "../../../../utils/cronAuth";
 
 export const dynamic = "force-dynamic";
 
+// Not scheduled in vercel.json by default: this route needs frequent execution
+// to catch the one-hour reminder window, which requires Vercel Pro or an
+// external scheduler such as QStash/Inngest. Keep CRON_SECRET enabled.
 async function processHourBeforeReminders() {
   try {
     const { db } = await connectToDatabase();
@@ -236,7 +240,14 @@ async function processHourBeforeReminders() {
   }
 }
 
-export async function GET() {
+export async function GET(request) {
+  if (!isAuthorizedCronRequest(request)) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 },
+    );
+  }
+
   const result = await processHourBeforeReminders();
   return NextResponse.json(
     {

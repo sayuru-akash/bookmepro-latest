@@ -8,8 +8,6 @@ import { Elements } from "@stripe/react-stripe-js";
 import { stripePromise } from "../Lib/stripe";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { useEffect } from "react";
-import axios from "axios";
 
 export default function ClientLayout({ children }) {
   const pathname = usePathname();
@@ -26,19 +24,6 @@ export default function ClientLayout({ children }) {
     isStudentDashboard ||
     isAdminLoginPage
   );
-
-  useEffect(() => {
-    const initializeCronJobs = async () => {
-      try {
-        // Only run this once on mount
-        await axios.get("/api/cron");
-      } catch (error) {
-        console.error("Error initializing cron jobs:", error);
-      }
-    };
-
-    initializeCronJobs();
-  }, []);
 
   return (
     <SessionProvider>

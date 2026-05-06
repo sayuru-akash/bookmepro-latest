@@ -45,14 +45,14 @@ export const metadata = {
     images: ["/images/about/tbltennis.jpg"],
   },
   icons: {
-    icon: "/images/iconmark-bmp.ico",
+    icon: "/favicon.ico",
   },
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={`${kanit.className} kanit-font`}>
+      <body className={`${kanit.className} kanit-font`} suppressHydrationWarning>
         {/* Google Analytics */}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-K9KK1XR1B3"

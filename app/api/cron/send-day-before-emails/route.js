@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { DateTime } from "luxon";
 import connectToDatabase from "../../../../Lib/mongodb";
 import { sendEmail } from "../../../../utils/sendEmail";
+import { isAuthorizedCronRequest } from "../../../../utils/cronAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -156,6 +157,13 @@ async function processDayBeforeReminders() {
 }
 
 export async function GET(request) {
+  if (!isAuthorizedCronRequest(request)) {
+    return NextResponse.json(
+      { success: false, error: "Unauthorized" },
+      { status: 401 },
+    );
+  }
+
   try {
     const results = await processDayBeforeReminders();
     
