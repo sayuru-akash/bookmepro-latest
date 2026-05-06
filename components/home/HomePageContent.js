@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   BriefcaseBusiness,
+  BookOpenCheck,
   CalendarDays,
   ChevronDown,
   Dumbbell,
@@ -10,6 +11,7 @@ import {
   MapPinned,
   ShieldCheck,
   Sparkles,
+  Star,
 } from "lucide-react";
 import Pricing from "../Pricing.js";
 import HomeAuthAction from "./HomeAuthAction";
@@ -34,10 +36,22 @@ const audienceCards = [
     icon: GraduationCap,
   },
   {
+    title: "Tutors",
+    description:
+      "Let students and parents book lessons, workshops, and recurring sessions with less back-and-forth.",
+    icon: BookOpenCheck,
+  },
+  {
     title: "Consultants",
     description:
       "Turn expertise into a clean client journey with structured bookings, clear service positioning, and less admin.",
     icon: BriefcaseBusiness,
+  },
+  {
+    title: "Celebrities",
+    description:
+      "Handle appearances, private sessions, and public booking requests through one polished experience.",
+    icon: Star,
   },
 ];
 
@@ -98,7 +112,7 @@ const workflowSteps = [
 const featureTiles = [
   "Custom public profile with a direct booking link",
   "Flexible availability management for changing schedules",
-  "Multiple coaching or meeting locations in one setup",
+  "Multiple session, lesson, or appearance locations in one setup",
   "Location-aware pricing already connected to the platform",
   "Built for solo operators and growing service businesses",
   "Designed to reduce admin drag so more time goes into delivery",
@@ -137,7 +151,7 @@ export default function HomePageContent() {
 
               <p className="mt-6 max-w-3xl text-lg font-light leading-8 text-white/88 sm:text-xl">
                 BookMePro helps coaches, personal trainers, sports instructors,
-                and consultants present their services better, manage
+                tutors, consultants, and celebrities present their services better, manage
                 appointments cleanly, and look far more established from the
                 first click.
               </p>
@@ -196,8 +210,8 @@ export default function HomePageContent() {
                 </div>
                 <div className="mt-3 space-y-2 text-sm font-medium">
                   <div>1:1 coaching and advisory sessions</div>
-                  <div>Recurring training programs</div>
-                  <div>In-person and multi-location services</div>
+                  <div>Lessons, appearances, and private sessions</div>
+                  <div>In-person, online, and multi-location services</div>
                 </div>
               </div>
             </div>
@@ -229,7 +243,7 @@ export default function HomePageContent() {
             </p>
           </div>
 
-          <div className="mt-12 grid gap-5 lg:grid-cols-4">
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {audienceCards.map(({ title, description, icon: Icon }) => (
               <article
                 key={title}
