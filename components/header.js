@@ -123,16 +123,19 @@ export default function Header({ initialCountryCode }) {
                 }`}
               >
                 <Link href="/">
-                  <div className="w-36 md:w-48">
+                  <div className="relative h-10 w-36 md:h-[54px] md:w-48">
                     <Image
                       src={
                         isHomePage
                           ? "/images/home/logo 2.png"
                           : "/images/home/logo 1.png"
                       }
-                      width={1000}
-                      height={500}
                       alt="logo"
+                      fill
+                      className="object-contain"
+                      loading="eager"
+                      fetchPriority="high"
+                      sizes="(max-width: 767px) 144px, 192px"
                     />
                   </div>
                 </Link>

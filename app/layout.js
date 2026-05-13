@@ -5,7 +5,7 @@ import ClientLayout from "./ClientLayout";
 
 const kanit = Kanit({
   subsets: ["latin"],
-  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
+  weight: ["300", "400", "500", "600", "700", "800"],
   display: "swap",
 });
 
@@ -56,9 +56,9 @@ export default function RootLayout({ children }) {
         {/* Google Analytics */}
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-K9KK1XR1B3"
-          strategy="afterInteractive"
+          strategy="lazyOnload"
         />
-        <Script id="google-analytics" strategy="afterInteractive">
+        <Script id="google-analytics" strategy="lazyOnload">
           {`
             window.dataLayer = window.dataLayer || [];
             function gtag(){dataLayer.push(arguments);}
@@ -68,7 +68,7 @@ export default function RootLayout({ children }) {
         </Script>
 
         {/* Meta Pixel Code */}
-        <Script id="meta-pixel" strategy="afterInteractive">
+        <Script id="meta-pixel" strategy="lazyOnload">
           {`
             !function(f,b,e,v,n,t,s)
             {if(f.fbq)return;n=f.fbq=function(){n.callMethod?

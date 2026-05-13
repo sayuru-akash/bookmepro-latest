@@ -682,7 +682,25 @@ function SignupContent({ initialCountryCode }) {
 
 export default function Signup() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="mt-20 mb-20 grid min-h-[1240px] place-items-start px-4 pt-16">
+          <div className="mx-auto w-full max-w-lg rounded-xl border border-white/50 bg-white/90 p-8 shadow-lg sm:p-10">
+            <div className="mx-auto h-8 w-28 rounded bg-gray-200" />
+            <div className="mx-auto mt-5 h-10 w-full max-w-sm rounded bg-gray-200" />
+            <div className="mt-8 space-y-6">
+              <div className="h-14 rounded-lg bg-gray-200" />
+              <div className="h-14 rounded-lg bg-gray-200" />
+              <div className="h-14 rounded-lg bg-gray-200" />
+              <div className="h-14 rounded-lg bg-gray-200" />
+              <div className="h-32 rounded-lg bg-gray-200" />
+              <div className="h-14 rounded-lg bg-gray-200" />
+              <div className="h-12 rounded-xl bg-gray-200" />
+            </div>
+          </div>
+        </div>
+      }
+    >
       <SignupContent />
     </Suspense>
   );

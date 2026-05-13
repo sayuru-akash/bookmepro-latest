@@ -47,8 +47,6 @@ import { useSession } from "next-auth/react";
 import { styled } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { useStripe, useElements, CardElement } from "@stripe/react-stripe-js";
-import { set } from "mongoose";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
@@ -81,8 +79,6 @@ const AdminCalendar = ({ timezone: propTimezone }) => {
   const [endTime, setEndTime] = useState(dayjs());
   const [timeSlots, setTimeSlots] = useState([]);
   const [multipleBookings, setMultipleBookings] = useState(false);
-  const stripe = useStripe();
-  const elements = useElements();
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [stripeCustomerId, setStripeCustomerId] = useState(null);

@@ -13,14 +13,14 @@ export default function Footer() {
             <div className="">
               {/* Logo */}
               <div className="flex justify-center md:justify-normal ">
-                <div className="w-36  sm:w-40 lg:w-48">
+                <div className="relative h-10 w-36 sm:h-11 sm:w-40 lg:h-[54px] lg:w-48">
                   <Link href="/">
                     <Image
                       src="/images/home/logo 2.png"
-                      width={1000}
-                      height={500}
-                      
                       alt="logo"
+                      fill
+                      className="object-contain"
+                      sizes="(max-width: 639px) 144px, (max-width: 1023px) 160px, 192px"
                     />
                   </Link>
                 </div>

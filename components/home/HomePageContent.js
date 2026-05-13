@@ -128,10 +128,10 @@ export default function HomePageContent() {
           muted
           loop
           playsInline
-          poster="/images/home/soccer.png"
+          poster="/images/optimized/home-hero-poster.webp"
           preload="metadata"
         >
-          <source src="/homeHeader.mp4" />
+          <source src="/homeHeader.mp4" type="video/mp4" />
         </video>
         <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(1,53,27,0.90)_8%,rgba(1,53,27,0.72)_42%,rgba(1,53,27,0.35)_72%,rgba(1,53,27,0.82)_100%)]" />
         <div className="home-grid-pattern absolute inset-0 opacity-50" />
@@ -198,7 +198,8 @@ export default function HomePageContent() {
                       height={980}
                       alt="Professionals using BookMePro to present and run their services"
                       className="h-auto w-full object-cover"
-                      priority
+                      preload
+                      sizes="(max-width: 1024px) 100vw, 40vw"
                     />
                   </div>
                 </div>
@@ -277,6 +278,7 @@ export default function HomePageContent() {
                     height={900}
                     alt="Coach presenting services in a more professional way"
                     className="h-96 w-full object-cover"
+                    sizes="(max-width: 1024px) 100vw, 42vw"
                   />
                 </div>
 
