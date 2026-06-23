@@ -3,11 +3,23 @@ import connectToDatabase from "../../../Lib/mongodb";
 import User from "../../../models/user";
 import { getStripeClient } from "../../../Lib/stripeClient";
 
+// Force Node.js runtime — Edge runtime cannot handle raw body correctly
+// for Stripe signature verification.
+export const runtime = "nodejs";
+
 // Main endpoint to receive webhooks from Stripe
 export async function POST(request) {
   const stripe = getStripeClient();
   const rawBody = await request.text();
   const sig = request.headers.get("stripe-signature");
+
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.error("STRIPE_WEBHOOK_SECRET is not set in environment variables");
+    return NextResponse.json(
+      { error: "Webhook secret not configured" },
+      { status: 500 },
+    );
+  }
 
   let event;
   try {
