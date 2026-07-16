@@ -5,12 +5,12 @@ export const dynamic = "force-dynamic";
 import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 import ProgressBar from "../../../components/ProgressBar";
 
 function PaymentContent() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const searchParams = useSearchParams();
-  const [loadingPrice, setLoadingPrice] = useState(true);
   const planFromUrl = searchParams.get("plan");
   const billingCycleFromUrl = searchParams.get("billingCycle");
   const countryCodeFromUrl = searchParams.get("countryCode");
@@ -27,7 +27,7 @@ function PaymentContent() {
   const email = searchParams.get("email") || session?.user?.email || "";
   const name = searchParams.get("name") || session?.user?.firstName || "";
 
-  const [price, setPrice] = useState(null);
+  const [priceDetails, setPriceDetails] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fetchingPrice, setFetchingPrice] = useState(true);
   const [error, setError] = useState(null);
@@ -37,7 +37,10 @@ function PaymentContent() {
   useEffect(() => {
     // --- THIS IS THE FIX ---
     // Guard Clause: Do not attempt to fetch a price until we have all the required info.
+    if (status === "loading") return;
+
     if (!plan || !billingCycle || !countryCode) {
+      setError("Choose a plan before continuing to checkout.");
       setFetchingPrice(false);
       return;
     }
@@ -51,8 +54,12 @@ function PaymentContent() {
         );
         const data = await response.json();
 
-        if (response.ok && data.price) {
-          setPrice(data.price);
+        if (response.ok && typeof data.price === "number") {
+          setPriceDetails({
+            amount: data.price,
+            currency: data.currency,
+            symbol: data.symbol || "$",
+          });
         } else {
           console.error("Error fetching price:", data.message);
           setError(data.message || "Failed to fetch pricing details.");
@@ -68,7 +75,7 @@ function PaymentContent() {
     };
 
     fetchPrice();
-  }, [plan, billingCycle, countryCode]);
+  }, [plan, billingCycle, countryCode, status]);
 
   const handleSubscribe = async () => {
     if (error) return;
@@ -107,7 +114,15 @@ function PaymentContent() {
         <h2 className="text-center text-2xl font-bold mt-4">Payment</h2>
 
         {error ? (
-          <p className="text-red-500 text-center mt-4">{error}</p>
+          <div className="mt-4 text-center">
+            <p className="text-red-600">{error}</p>
+            <Link
+              href="/#pricing"
+              className="mt-4 inline-flex rounded-lg bg-primary px-5 py-3 font-semibold text-white hover:bg-primary-dark"
+            >
+              View plans
+            </Link>
+          </div>
         ) : (
           <div className="mt-6">
             <h3 className="text-lg font-semibold mb-2">Subscription Details</h3>
@@ -119,15 +134,23 @@ function PaymentContent() {
               )}
               <p>
                 <span className="font-medium">Plan:</span>{" "}
-                {plan.charAt(0).toUpperCase() + plan.slice(1)}
+                {plan
+                  ? plan.charAt(0).toUpperCase() + plan.slice(1)
+                  : "Not selected"}
               </p>
               <p>
                 <span className="font-medium">Price:</span>{" "}
-                {fetchingPrice ? "Loading..." : `$${price}`}
+                {fetchingPrice
+                  ? "Loading..."
+                  : priceDetails
+                    ? `${priceDetails.symbol}${priceDetails.amount} ${priceDetails.currency}`
+                    : "Unavailable"}
               </p>
               <p>
                 <span className="font-medium">Billing Cycle:</span>{" "}
-                {billingCycle.charAt(0).toUpperCase() + billingCycle.slice(1)}
+                {billingCycle
+                  ? billingCycle.charAt(0).toUpperCase() + billingCycle.slice(1)
+                  : "Not selected"}
               </p>
               <p>
                 <span className="font-medium">Email:</span> {email}
@@ -144,7 +167,7 @@ function PaymentContent() {
             </p>
             <button
               onClick={handleSubscribe}
-              disabled={loading || fetchingPrice || !price}
+              disabled={loading || fetchingPrice || !priceDetails}
               className="w-full mt-6 bg-primary text-white py-3 rounded-lg hover:bg-primary-dark transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? "Processing..." : "Subscribe Now"}

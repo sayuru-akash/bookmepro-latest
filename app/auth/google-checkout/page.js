@@ -11,8 +11,11 @@ function GoogleCheckoutContent() {
   const router = useRouter();
 
   useEffect(() => {
-    // Only proceed if the session is loaded and authenticated
-    if (status !== "authenticated") return;
+    if (status === "loading") return;
+    if (status !== "authenticated") {
+      router.replace("/auth/login");
+      return;
+    }
 
     const startCheckout = async () => {
       const plan = params.get("plan");
@@ -25,7 +28,7 @@ function GoogleCheckoutContent() {
       if (!plan || !billingCycle || !countryCode || !name || !email) {
         console.error("Missing required data for checkout.");
         // Redirect to a generic pricing or error page if essential data is missing
-        router.replace("/pricing"); 
+        router.replace("/#pricing");
         return;
       }
 
@@ -64,7 +67,7 @@ function GoogleCheckoutContent() {
 
   }, [status, session, params, router]);
 
-  // Display a loading state while processing
+  // Display a loading state while authentication and checkout are processing.
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center">

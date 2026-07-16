@@ -1,22 +1,31 @@
 import { useState, useEffect, useCallback } from "react";
 import { PRICING_PLANS, normalizeCountryCode } from "../config/pricing";
 
-export function useLocationPricing(initialCountryCode = "DEFAULT") {
-  // Use the prop as the initial state to prevent flicker
-  const [countryCode, setCountryCode] = useState(
-    normalizeCountryCode(initialCountryCode),
-  );
+export function useLocationPricing(initialCountryCode = null) {
+  const explicitCountryCode = initialCountryCode
+    ? normalizeCountryCode(initialCountryCode)
+    : null;
+
+  const [detectedCountryCode, setDetectedCountryCode] = useState("DEFAULT");
+  const countryCode = explicitCountryCode || detectedCountryCode;
 
   // On mount, read the cookie set by the middleware
   useEffect(() => {
+    if (explicitCountryCode) {
+      return;
+    }
+
     if (typeof document === "undefined") return;
     const match = document.cookie.match(/(^|;)\s*user-country=([^;]+)/);
     if (match) {
       const normalized = normalizeCountryCode(match[2]);
+      // Cookie state is an external browser value discovered after hydration.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCountryCode((prev) => (prev !== normalized ? normalized : prev));
+      setDetectedCountryCode((prev) =>
+        prev !== normalized ? normalized : prev,
+      );
     }
-  }, []);
+  }, [explicitCountryCode]);
 
   // Note: The isLoading state is now less critical since the initial render is correct.
 

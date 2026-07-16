@@ -36,8 +36,17 @@ export async function POST(request) {
     );
   }
 
-  // Process the webhook asynchronously to avoid timeouts
-  processWebhookAsync(event, stripe);
+  // Await processing so serverless runtimes cannot terminate before the
+  // database update completes. Returning 500 lets Stripe retry safely.
+  try {
+    await processWebhookAsync(event, stripe);
+  } catch (error) {
+    console.error(`Stripe webhook processing failed for ${event.id}:`, error);
+    return NextResponse.json(
+      { error: "Webhook processing failed" },
+      { status: 500 },
+    );
+  }
 
   // Immediately acknowledge receipt of the webhook to Stripe
   return NextResponse.json({ received: true });
@@ -80,6 +89,7 @@ async function processWebhookAsync(event, stripe) {
       `Error processing webhook event ${event.type} - ${event.id}:`,
       error,
     );
+    throw error;
   }
 }
 

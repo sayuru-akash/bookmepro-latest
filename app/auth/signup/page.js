@@ -26,7 +26,13 @@ import validator from "validator";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import Image from "next/image";
 import { useLocationPricing } from "../../../app/hooks/useLocationPricing";
-import { normalizeCountryCode } from "../../../app/config/pricing";
+import {
+  getPhoneCountryCode,
+  normalizeCountryCode,
+} from "../../../app/config/pricing";
+
+const VALID_PLANS = ["starter", "growth", "pro", "enterprise"];
+const VALID_BILLING_CYCLES = ["monthly", "quarterly", "yearly"];
 
 // ensures the component is not re-created on every state change, preventing focus loss.
 const InputField = ({
@@ -97,8 +103,17 @@ function SignupContent({ initialCountryCode }) {
   const searchParams = useSearchParams();
 
   // Extract query parameters
-  const plan = searchParams.get("plan");
-  const billingCycle = searchParams.get("billingCycle");
+  const requestedPlan = searchParams.get("plan")?.trim().toLowerCase();
+  const requestedBillingCycle = searchParams
+    .get("billingCycle")
+    ?.trim()
+    .toLowerCase();
+  const plan = VALID_PLANS.includes(requestedPlan)
+    ? requestedPlan
+    : "starter";
+  const billingCycle = VALID_BILLING_CYCLES.includes(requestedBillingCycle)
+    ? requestedBillingCycle
+    : "monthly";
   // **MODIFIED:** Directly get the country code without decoding
   const countryCodeFromUrl = searchParams.get("countryCode");
 
@@ -107,30 +122,20 @@ function SignupContent({ initialCountryCode }) {
   const [loadingPrice, setLoadingPrice] = useState(true);
 
   // Normalized code is used for pricing and phone input defaults
-  const normalizedUrlCountry = normalizeCountryCode(countryCodeFromUrl);
+  const normalizedUrlCountry = countryCodeFromUrl
+    ? normalizeCountryCode(countryCodeFromUrl)
+    : null;
 
   // Initialize pricing hook using the decoded country code if available
   const {
     getPricing,
     formatPrice,
     countryCode: pricingCountry,
-  } = useLocationPricing(normalizedUrlCountry);
+  } = useLocationPricing(normalizedUrlCountry || initialCountryCode);
 
   // Separate state for phone input country code
-  const [countryCode, setCountryCode] = useState(
-    normalizedUrlCountry || pricingCountry,
-  );
-
-  // Sync phone input country with pricing country when not locked by URL
-  useEffect(() => {
-    if (
-      !normalizedUrlCountry &&
-      pricingCountry &&
-      pricingCountry !== countryCode
-    ) {
-      setCountryCode(pricingCountry);
-    }
-  }, [pricingCountry, normalizedUrlCountry, countryCode]);
+  const countryCode = pricingCountry;
+  const phoneCountryCode = getPhoneCountryCode(countryCode);
 
   // State for form fields and validation
   const [firstName, setFirstName] = useState("");
@@ -164,37 +169,32 @@ function SignupContent({ initialCountryCode }) {
     specialChar: false,
   });
 
-  const isPhoneCountryLocked = !!normalizedUrlCountry;
+  const isPhoneCountryLocked =
+    Boolean(countryCodeFromUrl) && normalizedUrlCountry !== "DEFAULT";
 
   // Validate query parameters
   useEffect(() => {
-    const validPlans = ["starter", "growth", "pro", "enterprise"];
-    const validBillingCycles = ["monthly", "quarterly", "yearly"];
-
-    if (!validPlans.includes(plan)) {
+    if (requestedPlan && !VALID_PLANS.includes(requestedPlan)) {
       setError("Invalid plan selected. Please choose a valid plan.");
       return;
     }
 
-    if (!billingCycle || !validBillingCycles.includes(billingCycle)) {
+    if (
+      requestedBillingCycle &&
+      !VALID_BILLING_CYCLES.includes(requestedBillingCycle)
+    ) {
       setError(
         "Invalid or missing billing cycle. Please select a valid billing cycle.",
       );
-      return;
     }
-  }, [plan, billingCycle, countryCode]);
+  }, [requestedPlan, requestedBillingCycle]);
 
   // Fetch package data based on plan and billing cycle
   useEffect(() => {
-    if (plan && billingCycle) {
-      setLoadingPrice(true);
-      const details = getPricing(plan, billingCycle);
-      setPriceDetails(details);
-      setLoadingPrice(false);
-    } else {
-      setError("Plan or billing cycle is missing from the URL.");
-      setLoadingPrice(false);
-    }
+    setLoadingPrice(true);
+    const details = getPricing(plan, billingCycle);
+    setPriceDetails(details);
+    setLoadingPrice(false);
   }, [plan, billingCycle, getPricing]);
 
   // Redirect to dashboard if user is already logged in
@@ -206,24 +206,7 @@ function SignupContent({ initialCountryCode }) {
 
   // Email validation function
   const isValidEmail = (email) => {
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!validator.isEmail(email.trim())) {
-      return false;
-    }
-
-    const emailDomain = email.split("@")[1].toLowerCase();
-    const allowedDomains = [
-      "gmail.com",
-      "yahoo.com",
-      "outlook.com",
-      "hotmail.com",
-    ];
-    const isAllowedDomain = allowedDomains.some((domain) =>
-      emailDomain.endsWith(domain),
-    );
-
-    return isAllowedDomain;
+    return validator.isEmail(email.trim());
   };
 
   const [selectedPlan, setSelectedPlan] = useState("starter");
@@ -295,11 +278,8 @@ function SignupContent({ initialCountryCode }) {
   };
 
   // Special handler for phone since it uses a different onChange pattern
-  const handlePhoneChange = (phone, meta) => {
+  const handlePhoneChange = (phone) => {
     setPhoneValue(phone);
-    if (meta.country) {
-      setCountryCode(meta.country.iso2.toUpperCase());
-    }
   };
 
   // Validate all form fields
@@ -309,7 +289,7 @@ function SignupContent({ initialCountryCode }) {
       email: !email.trim()
         ? "Email is required"
         : !isValidEmail(email)
-          ? "Please enter a valid email address with a common domain"
+          ? "Please enter a valid email address"
           : "",
       password: getPasswordError(password),
       contact: !phoneValue
@@ -423,7 +403,9 @@ function SignupContent({ initialCountryCode }) {
           {billingCycle} -
           {loadingPrice
             ? "Loading..."
-            : `${priceDetails.symbol}${priceDetails.amount}`}
+            : priceDetails
+              ? `${priceDetails.symbol}${priceDetails.amount}`
+              : "Pricing unavailable"}
           )
         </p>
 
@@ -489,7 +471,7 @@ function SignupContent({ initialCountryCode }) {
             <PhoneInput
               value={phoneValue}
               onChange={handlePhoneChange}
-              defaultCountry={countryCode?.toLowerCase() || "au"}
+              defaultCountry={phoneCountryCode}
               disableCountrySelector={isPhoneCountryLocked}
               // onBlur={() => setFocusedField('')}
               placeholder="Enter your phone number"
@@ -567,8 +549,8 @@ function SignupContent({ initialCountryCode }) {
             )}
             <div className="items-center text-left mt-1 justify-center">
               <p className="text-sm text-gray-600 mt-1">
-                Password must be at least 8 characters long and contain at least
-                3 of the following:
+                Password must be at least 8 characters long and contain all of
+                the following:
               </p>
               <ul className="text-sm text-gray-600 list-disc list-inside">
                 <li
@@ -618,13 +600,6 @@ function SignupContent({ initialCountryCode }) {
           >
             {loading ? "Registering..." : "Register"}
           </button>
-
-          {/* Error Message */}
-          {error && (
-            <div className="bg-red-500 text-white p-3 rounded mt-4 text-center">
-              {error}
-            </div>
-          )}
 
           {/* Google Sign-In Button */}
           <button

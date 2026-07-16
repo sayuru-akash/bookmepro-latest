@@ -149,3 +149,8 @@ export function normalizeCountryCode(code) {
   // If it's not EU and not another specific country, fallback to the default
   return "DEFAULT";
 }
+
+export function getPhoneCountryCode(code, fallback = "au") {
+  const normalized = normalizeCountryCode(code);
+  return normalized === "DEFAULT" ? fallback : normalized.toLowerCase();
+}

@@ -67,8 +67,11 @@ const StudentStatsCard = () => {
   };
 
   const handleUpgradeConfirm = () => {
-    // Redirect to pricing page or handle upgrade logic
-    window.location.href = `/pricing?recommended=${planStatus.data.recommendedPlan.plan}&current=${planStatus.data.currentPlan.plan}`;
+    const query = new URLSearchParams({
+      recommended: planStatus.data.recommendedPlan.plan,
+      current: planStatus.data.currentPlan.plan,
+    });
+    window.location.href = `/?${query.toString()}#pricing`;
   };
 
   const getStatusColor = () => {
