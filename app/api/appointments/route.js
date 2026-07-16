@@ -1,394 +1,726 @@
-// app/api/appointments/route.js
-import axios from "axios";
+import crypto from "node:crypto";
 import { ObjectId } from "mongodb";
 import connectToDatabase from "../../../Lib/mongodb";
-import User from "../../../models/user";
+import {
+  requireSession,
+  errorResponse,
+} from "../../../Lib/auth/requireSession";
+import {
+  ACTIVE_APPOINTMENT_STATUSES,
+  APPOINTMENT_STATUSES,
+  appointmentCapacityTransition,
+  appointmentInterval,
+  intervalsOverlap,
+  normalizeAppointmentStatus,
+} from "../../../Lib/booking/time";
+import { busyIntervalsForOwner } from "../../../Lib/integrations/googleCalendar";
+import {
+  enqueueCalendarSync,
+  drainCalendarOutbox,
+} from "../../../Lib/integrations/calendarOutbox";
+import {
+  cancelAppointmentReminders,
+  drainNotificationOutbox,
+  enqueueAppointmentNotifications,
+  scheduleAppointmentReminders,
+} from "../../../Lib/notifications/outbox";
 
-// Function to send status-update emails using Brevo API
-async function sendEmail({
-  email,
-  name,
-  status,
-  selectedDate,
-  selectedTime,
-  selectedTimezone,
-  appointmentId,
-}) {
-  const { db } = await connectToDatabase();
+const SAFE_PROJECTION = {
+  name: 1,
+  email: 1,
+  phone: 1,
+  appointmentDetails: 1,
+  selectedDate: 1,
+  selectedTime: 1,
+  selectedTimezone: 1,
+  timeZone: 1,
+  startAt: 1,
+  endAt: 1,
+  location: 1,
+  status: 1,
+  coachId: 1,
+  studentId: 1,
+  isIndividualSession: 1,
+  multipleBookings: 1,
+  capacity: 1,
+  googleMeetLink: 1,
+  externalCalendarHtmlLink: 1,
+  calendarSyncError: 1,
+  version: 1,
+  createdAt: 1,
+  updatedAt: 1,
+};
 
-  // Check if status-update email already sent
-  const existingAppointment = await db.collection("appointments").findOne({
-    _id: new ObjectId(appointmentId),
-    statusEmailSent: true,
-  });
-
-  if (existingAppointment) {
-    // console.log("Status email already sent for appointment:", appointmentId);
-    return;
-  }
-
-  // Format date and time
-  const [startTime] = (selectedTime?.value || selectedTime || "").split(" - ");
-  const dateObj = new Date(selectedDate);
-
-  const formattedDate = dateObj.toLocaleDateString("en-AU", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
-  const tz = selectedTimezone || "Australia/Sydney";
-  const tzAbbr =
-    new Intl.DateTimeFormat("en-AU", {
-      timeZone: tz,
-      timeZoneName: "short",
-    })
-      .formatToParts(new Date())
-      .find((p) => p.type === "timeZoneName")?.value || tz;
-
-  const formattedTime = new Date(
-    `1970-01-01T${startTime}:00`,
-  ).toLocaleTimeString("en-AU", {
-    hour: "numeric",
-    minute: "numeric",
-    hour12: true,
-  });
-
-  const API_URL = "https://api.brevo.com/v3/smtp/email";
-  const BREVO_API_KEY = process.env.BREVO_API_KEY;
-
-  const emailData = {
-    sender: { email: "bookmeprocodezela@gmail.com", name: "BookMePro" },
-    to: [{ email, name }],
-    subject: `Appointment on ${formattedDate} at ${formattedTime} - Status: ${status}`,
-    htmlContent: `
-      <p>Dear ${name},</p>
-      <p>Your appointment scheduled for <strong>${formattedDate}</strong> at <strong>${formattedTime} (${tzAbbr})</strong> has been updated to: <strong>${status}</strong>.</p>
-      <p>Thank you!</p>
-    `,
-  };
-
-  try {
-    const response = await axios.post(API_URL, emailData, {
-      headers: {
-        "Content-Type": "application/json",
-        "api-key": BREVO_API_KEY,
-      },
-    });
-
-    // Mark status-update email as sent ONLY if successful
-    await db
-      .collection("appointments")
-      .updateOne(
-        { _id: new ObjectId(appointmentId) },
-        { $set: { statusEmailSent: true } },
-      );
-
-    // console.log("Status email sent and marked successfully:", response.data);
-  } catch (error) {
-    console.error(
-      "Error sending status email:",
-      error.response?.data || error.message,
-    );
-    throw error;
-  }
+function idsFor(value) {
+  const text = String(value);
+  return ObjectId.isValid(text) ? [new ObjectId(text), text] : [text];
 }
 
-// POST request: Create a new appointment
-export async function POST(req) {
-  const {
-    name,
-    email,
-    phone,
-    appointmentDetails,
-    selectedDate,
-    selectedTime,
-    isIndividualSession,
-    coachId,
-    studentId,
-    selectedTimezone,
-    location,
-  } = await req.json();
-
-  // Validate required fields
-  if (!name || !email || !phone || !coachId || !studentId) {
-    return new Response(
-      JSON.stringify({ message: "Name, email, and phone are required." }),
-      { status: 400 },
-    );
-  }
-
-  const { db } = await connectToDatabase();
-
-  try {
-    // Validate and resolve coach ID
-    let resolvedCoachId = coachId;
-
-    // If coachId is not a valid MongoDB ID (24 chars), treat as username
-    if (!ObjectId.isValid(coachId)) {
-      const coach = await db.collection("users").findOne({
-        username: coachId,
+async function resolveCoach(db, value) {
+  const query = ObjectId.isValid(value)
+    ? { _id: new ObjectId(value), role: "coach" }
+    : {
+        username: {
+          $regex: `^${String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`,
+          $options: "i",
+        },
         role: "coach",
-      });
+      };
+  return db.collection("users").findOne(query);
+}
 
-      if (!coach) {
-        return new Response(
-          JSON.stringify({
-            message: "Coach not found with the provided identifier.",
-          }),
-          { status: 404 },
-        );
-      }
-      resolvedCoachId = coach._id.toString();
+function slotGroupKey({ coachId, startAt, endAt, location }) {
+  return crypto
+    .createHash("sha256")
+    .update(
+      `${coachId}|${new Date(startAt).toISOString()}|${new Date(endAt).toISOString()}|${location || ""}`,
+    )
+    .digest("hex");
+}
+
+async function ensureBookingIndexes(db) {
+  await Promise.all([
+    db
+      .collection("appointments")
+      .createIndex(
+        { idempotencyKey: 1 },
+        { unique: true, sparse: true, name: "booking_idempotency" },
+      ),
+    db
+      .collection("appointments")
+      .createIndex(
+        { coachId: 1, startAt: 1, endAt: 1, status: 1 },
+        { name: "booking_conflicts" },
+      ),
+    db
+      .collection("appointments")
+      .createIndex(
+        { studentId: 1, startAt: 1, status: 1 },
+        { name: "student_schedule" },
+      ),
+  ]);
+}
+
+async function findAvailabilitySlot(
+  db,
+  coachId,
+  dateKey,
+  selectedTime,
+  location,
+) {
+  const dateStart = new Date(`${dateKey}T00:00:00.000Z`);
+  const dateEnd = new Date(`${dateKey}T23:59:59.999Z`);
+  const document = await db.collection("availabledates").findOne({
+    coachId: new ObjectId(coachId),
+    date: { $gte: dateStart, $lte: dateEnd },
+  });
+  const normalizedLocation = location || null;
+  const slot = document?.timeSlots?.find(
+    (item) =>
+      item.time === selectedTime &&
+      (item.location || null) === normalizedLocation,
+  );
+  return { document, slot };
+}
+
+async function reserveCapacity(db, { groupKey, capacity, activeCount }) {
+  await db.collection("bookingCapacity").updateOne(
+    { _id: groupKey },
+    {
+      $setOnInsert: { activeCount, createdAt: new Date() },
+      $set: { capacity, updatedAt: new Date() },
+    },
+    { upsert: true },
+  );
+  const reserved = await db
+    .collection("bookingCapacity")
+    .findOneAndUpdate(
+      { _id: groupKey, activeCount: { $lt: capacity } },
+      { $inc: { activeCount: 1 }, $set: { updatedAt: new Date() } },
+      { returnDocument: "after" },
+    );
+  return Boolean(reserved);
+}
+
+async function decrementCapacity(db, groupKey) {
+  if (!groupKey) return;
+  await db.collection("bookingCapacity").updateOne(
+    { _id: groupKey, activeCount: { $gt: 0 } },
+    { $inc: { activeCount: -1 }, $set: { updatedAt: new Date() } },
+  );
+}
+
+async function runLifecycleJobs(db, appointment) {
+  await enqueueCalendarSync(db, appointment);
+  await drainCalendarOutbox({ appointmentId: appointment._id, limit: 5 });
+  await drainNotificationOutbox({ appointmentId: appointment._id, limit: 10 });
+}
+
+export async function POST(request) {
+  let capacityReserved = null;
+  try {
+    const session = await requireSession(["student"]);
+    const body = await request.json();
+    const selectedTime = body.selectedTime?.value ?? body.selectedTime;
+    if (!body.coachId || !body.selectedDate || !selectedTime) {
+      return Response.json(
+        { message: "Coach, date, and time are required." },
+        { status: 400 },
+      );
     }
 
-    // Duplicate booking guard
-    // Normalise the time value the same way as we store it below so the
-    // query always matches what is actually in the database.
-    const normalizedTime = selectedTime?.value ?? selectedTime;
+    const connection = await connectToDatabase();
+    const db = connection.db;
+    await ensureBookingIndexes(db);
+    const [coach, student] = await Promise.all([
+      resolveCoach(db, body.coachId),
+      db.collection("students").findOne({ _id: new ObjectId(session.user.id) }),
+    ]);
+    if (!coach)
+      return Response.json({ message: "Coach not found." }, { status: 404 });
+    if (!student)
+      return Response.json(
+        { message: "Student account not found." },
+        { status: 404 },
+      );
+    if (!student.emailVerifiedAt) {
+      return Response.json(
+        { message: "Verify your email before booking a session." },
+        { status: 403 },
+      );
+    }
+    const clientIdempotencyKey = String(
+      request.headers.get("idempotency-key") ||
+        body.idempotencyKey ||
+        crypto.randomUUID(),
+    ).slice(0, 200);
+    const idempotencyKey = crypto
+      .createHash("sha256")
+      .update(`${student._id}:${clientIdempotencyKey}`)
+      .digest("hex");
+    const priorAttempt = await db.collection("appointments").findOne({
+      idempotencyKey,
+      studentId: { $in: idsFor(student._id) },
+    });
+    if (priorAttempt) return Response.json(priorAttempt, { status: 200 });
 
-    // location IS part of this check: same time at a different location is
-    // a valid independent booking per business requirements.
-    // Only same (studentId + coachId + date + time + location) is a duplicate.
-    const existingBooking = await db.collection("appointments").findOne({
-      studentId, // stored as plain string
-      coachId: new ObjectId(resolvedCoachId),
-      selectedDate: new Date(selectedDate),
-      selectedTime: normalizedTime,
-      location: location ?? null,
-      status: { $in: ["pending", "approved"] }, // declined/cancelled are fine to rebook
+    const requestedZone =
+      body.selectedTime?.timezone || body.selectedTimezone || coach.timezone;
+    const interval = appointmentInterval({
+      date: body.selectedDate,
+      time: selectedTime,
+      timeZone: requestedZone,
+    });
+    if (new Date(interval.startAt) <= new Date()) {
+      return Response.json(
+        { message: "This appointment time has already passed." },
+        { status: 400 },
+      );
+    }
+
+    const location = body.selectedTime?.location ?? body.location ?? null;
+    const { slot } = await findAvailabilitySlot(
+      db,
+      coach._id,
+      interval.dateKey,
+      selectedTime,
+      location,
+    );
+    if (!slot)
+      return Response.json(
+        { message: "This time slot is no longer available." },
+        { status: 409 },
+      );
+    const multipleBookings = Boolean(slot.multipleBookings);
+    const capacity = multipleBookings
+      ? Math.max(2, Math.min(500, Number(slot.capacity || 25)))
+      : 1;
+    const groupKey = slotGroupKey({
+      coachId: coach._id,
+      ...interval,
+      location,
     });
 
-    if (existingBooking) {
-      return new Response(
-        JSON.stringify({
-          message:
-            "You already have an active booking for this time slot. Please check your existing appointments.",
-        }),
+    const duplicate = await db.collection("appointments").findOne({
+      studentId: { $in: idsFor(student._id) },
+      groupKey,
+      status: { $in: ACTIVE_APPOINTMENT_STATUSES },
+    });
+    if (duplicate) {
+      return Response.json(
+        { message: "You already have an active booking for this session." },
         { status: 409 },
       );
     }
 
-    const createdAt = new Date();
-    const appointment = {
-      name,
-      email,
-      phone,
-      appointmentDetails,
-      selectedDate: new Date(selectedDate),
-      // Normalize: store only the time string, not the full object
-      selectedTime: selectedTime?.value ?? selectedTime,
-      // Preserve timezone for correct email formatting and future display
-      selectedTimezone:
-        selectedTime?.timezone ?? selectedTimezone ?? "Australia/Sydney",
-      // Store the specific location so duplicate checks are location-scoped
-      // (same time + different location is a valid, independent booking)
-      location: location ?? null,
-      isIndividualSession,
-      // Store as ObjectId for consistent querying via Mongoose
-      coachId: new ObjectId(resolvedCoachId),
-      createdAt,
-      status: "pending",
-      statusEmailSent: false,
-      dayBeforeSent: false,
-      hourBeforeSent: false,
-      studentId,
-    };
-
-    const result = await db.collection("appointments").insertOne(appointment);
-    return new Response(JSON.stringify(result), { status: 201 });
-  } catch (error) {
-    console.error("Error saving appointment:", error);
-    return new Response(
-      JSON.stringify({
-        message: "Error saving appointment.",
-        error: error.message,
+    const [coachGoogleBusy, studentGoogleBusy] = await Promise.all([
+      busyIntervalsForOwner("coach", coach._id, {
+        timeMin: interval.startAt,
+        timeMax: interval.endAt,
       }),
-      { status: 500 },
-    );
+      busyIntervalsForOwner("student", student._id, {
+        timeMin: interval.startAt,
+        timeMax: interval.endAt,
+      }),
+    ]);
+    if (
+      coachGoogleBusy.some((busy) =>
+        intervalsOverlap(
+          interval.startAt,
+          interval.endAt,
+          busy.start,
+          busy.end,
+        ),
+      )
+    ) {
+      return Response.json(
+        {
+          message:
+            "The coach is no longer available at this time. Please choose another slot.",
+        },
+        { status: 409 },
+      );
+    }
+    if (
+      studentGoogleBusy.some((busy) =>
+        intervalsOverlap(
+          interval.startAt,
+          interval.endAt,
+          busy.start,
+          busy.end,
+        ),
+      )
+    ) {
+      return Response.json(
+        {
+          message:
+            "This overlaps an event in your connected Google Calendar. Please choose another slot.",
+        },
+        { status: 409 },
+      );
+    }
+
+    const activeCount = await db.collection("appointments").countDocuments({
+      groupKey,
+      status: { $in: ACTIVE_APPOINTMENT_STATUSES },
+    });
+    if (
+      activeCount >= capacity ||
+      !(await reserveCapacity(db, { groupKey, capacity, activeCount }))
+    ) {
+      return Response.json(
+        { message: "This session has just reached capacity." },
+        { status: 409 },
+      );
+    }
+    capacityReserved = { db, groupKey };
+
+    const now = new Date();
+    const appointment = {
+      name: student.name || student.fullName,
+      email: String(student.email).toLowerCase(),
+      phone: student.phone,
+      address: student.address || "",
+      appointmentDetails: String(body.appointmentDetails || "")
+        .trim()
+        .slice(0, 2000),
+      selectedDate: new Date(`${interval.dateKey}T00:00:00.000Z`),
+      selectedTime,
+      selectedTimezone: interval.timeZone,
+      timeZone: interval.timeZone,
+      startAt: interval.startAt,
+      endAt: interval.endAt,
+      location,
+      isIndividualSession: !multipleBookings,
+      multipleBookings,
+      capacity,
+      groupKey,
+      coachId: coach._id,
+      studentId: student._id,
+      status: "pending",
+      version: 1,
+      idempotencyKey,
+      reservationReleased: false,
+      statusEmailSent: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    let result;
+    try {
+      result = await db.collection("appointments").insertOne(appointment);
+    } catch (error) {
+      if (error.code === 11000) {
+        await db
+          .collection("bookingCapacity")
+          .updateOne(
+            { _id: groupKey, activeCount: { $gt: 0 } },
+            { $inc: { activeCount: -1 } },
+          );
+        const existing = await db.collection("appointments").findOne({
+          idempotencyKey,
+          studentId: { $in: idsFor(student._id) },
+        });
+        return Response.json(existing, { status: 200 });
+      }
+      throw error;
+    }
+    capacityReserved = null;
+    appointment._id = result.insertedId;
+    await enqueueAppointmentNotifications(db, appointment, "created");
+    await runLifecycleJobs(db, appointment);
+    return Response.json(appointment, { status: 201 });
+  } catch (error) {
+    if (capacityReserved) {
+      await capacityReserved.db
+        .collection("bookingCapacity")
+        .updateOne(
+          { _id: capacityReserved.groupKey, activeCount: { $gt: 0 } },
+          { $inc: { activeCount: -1 } },
+        )
+        .catch(() => {});
+    }
+    console.error("Appointment creation failed:", error);
+    return errorResponse(error, "Unable to create the appointment.");
   }
 }
 
-// PATCH request: Update appointment status
-export async function PATCH(req) {
-  const { id, status } = await req.json();
-
-  if (!id || !status) {
-    return new Response(
-      JSON.stringify({ message: "Appointment ID and status are required." }),
-      { status: 400 },
-    );
-  }
-
-  const { db } = await connectToDatabase();
-
+export async function PATCH(request) {
+  let provisionalCapacity = null;
   try {
-    const appointment = await db
+    const session = await requireSession(["coach", "student"]);
+    const body = await request.json();
+    if (!ObjectId.isValid(body.id))
+      return Response.json(
+        { message: "A valid appointment is required." },
+        { status: 400 },
+      );
+    const connection = await connectToDatabase();
+    const db = connection.db;
+    let appointment = await db
       .collection("appointments")
-      .findOne({ _id: new ObjectId(id) });
-
-    if (!appointment) {
-      return new Response(
-        JSON.stringify({
-          message: "No appointment found with the provided ID.",
-        }),
+      .findOne({ _id: new ObjectId(body.id) });
+    if (!appointment)
+      return Response.json(
+        { message: "Appointment not found." },
         { status: 404 },
       );
+
+    const isCoach =
+      session.user.role === "coach" &&
+      idsFor(appointment.coachId).some((id) => String(id) === session.user.id);
+    const isStudent =
+      session.user.role === "student" &&
+      idsFor(appointment.studentId).some(
+        (id) => String(id) === session.user.id,
+      );
+    if (!isCoach && !isStudent)
+      return Response.json(
+        { message: "You do not own this booking." },
+        { status: 403 },
+      );
+
+    const previousStatus = normalizeAppointmentStatus(appointment.status);
+    const requestedStatus = normalizeAppointmentStatus(
+      body.status || previousStatus,
+    );
+    if (!APPOINTMENT_STATUSES.includes(requestedStatus)) {
+      return Response.json(
+        { message: "Invalid appointment status." },
+        { status: 400 },
+      );
+    }
+    if (isStudent && !["cancelled", previousStatus].includes(requestedStatus)) {
+      return Response.json(
+        { message: "Students can cancel or reschedule their own bookings." },
+        { status: 403 },
+      );
+    }
+    if (
+      isCoach &&
+      ![
+        "approved",
+        "declined",
+        "cancelled",
+        "completed",
+        "no_show",
+        previousStatus,
+      ].includes(requestedStatus)
+    ) {
+      return Response.json(
+        { message: "That booking transition is not allowed." },
+        { status: 409 },
+      );
     }
 
+    const update = { status: requestedStatus, updatedAt: new Date() };
+    let transition =
+      requestedStatus !== previousStatus ? requestedStatus : null;
+    let nextGroupKey = appointment.groupKey;
+    let nextCapacity = Number(appointment.capacity || 1);
+    let groupChanged = false;
+    const isReschedule = Boolean(
+      body.selectedDate && (body.selectedTime?.value || body.selectedTime),
+    );
+    if (isReschedule) {
+      const selectedTime = body.selectedTime?.value ?? body.selectedTime;
+      const interval = appointmentInterval({
+        date: body.selectedDate,
+        time: selectedTime,
+        timeZone:
+          body.selectedTime?.timezone ||
+          body.selectedTimezone ||
+          appointment.timeZone,
+      });
+      if (new Date(interval.startAt) <= new Date())
+        return Response.json(
+          { message: "Select a future time." },
+          { status: 400 },
+        );
+      const location =
+        body.selectedTime?.location ??
+        body.location ??
+        appointment.location ??
+        null;
+      const { slot } = await findAvailabilitySlot(
+        db,
+        appointment.coachId,
+        interval.dateKey,
+        selectedTime,
+        location,
+      );
+      if (!slot)
+        return Response.json(
+          { message: "The requested time is no longer available." },
+          { status: 409 },
+        );
+      const timeChanged =
+        new Date(interval.startAt).getTime() !==
+          new Date(appointment.startAt).getTime() ||
+        new Date(interval.endAt).getTime() !==
+          new Date(appointment.endAt).getTime();
+      const [coachBusy, studentBusy] = timeChanged
+        ? await Promise.all([
+            busyIntervalsForOwner("coach", appointment.coachId, {
+              timeMin: interval.startAt,
+              timeMax: interval.endAt,
+            }),
+            busyIntervalsForOwner("student", appointment.studentId, {
+              timeMin: interval.startAt,
+              timeMax: interval.endAt,
+            }),
+          ])
+        : [[], []];
+      if (
+        coachBusy.some((item) =>
+          intervalsOverlap(
+            interval.startAt,
+            interval.endAt,
+            item.start,
+            item.end,
+          ),
+        )
+      ) {
+        return Response.json(
+          { message: "The coach is busy at the requested time." },
+          { status: 409 },
+        );
+      }
+      if (
+        studentBusy.some((item) =>
+          intervalsOverlap(
+            interval.startAt,
+            interval.endAt,
+            item.start,
+            item.end,
+          ),
+        )
+      ) {
+        return Response.json(
+          {
+            message:
+              "The requested time overlaps the student’s connected Google Calendar.",
+          },
+          { status: 409 },
+        );
+      }
+      const multipleBookings = Boolean(slot.multipleBookings);
+      const capacity = multipleBookings
+        ? Math.max(2, Math.min(500, Number(slot.capacity || 25)))
+        : 1;
+      nextGroupKey = slotGroupKey({
+        coachId: appointment.coachId,
+        ...interval,
+        location,
+      });
+      nextCapacity = capacity;
+      groupChanged = nextGroupKey !== appointment.groupKey;
+      Object.assign(update, {
+        selectedDate: new Date(`${interval.dateKey}T00:00:00.000Z`),
+        selectedTime,
+        selectedTimezone: interval.timeZone,
+        timeZone: interval.timeZone,
+        startAt: interval.startAt,
+        endAt: interval.endAt,
+        location,
+        isIndividualSession: !multipleBookings,
+        multipleBookings,
+        capacity: nextCapacity,
+        groupKey: nextGroupKey,
+        status: isStudent ? "pending" : requestedStatus,
+      });
+      transition = "rescheduled";
+    }
+
+    const capacityTransition = appointmentCapacityTransition({
+      previousStatus,
+      nextStatus: update.status,
+      reservationReleased: appointment.reservationReleased,
+      groupChanged,
+    });
+    update.reservationReleased = capacityTransition.reservationReleased;
+
+    if (capacityTransition.reserveNext) {
+      const duplicate = await db.collection("appointments").findOne({
+        _id: { $ne: appointment._id },
+        studentId: { $in: idsFor(appointment.studentId) },
+        groupKey: nextGroupKey,
+        status: { $in: ACTIVE_APPOINTMENT_STATUSES },
+      });
+      if (duplicate) {
+        return Response.json(
+          {
+            message:
+              "The student already has an active booking for this session.",
+          },
+          { status: 409 },
+        );
+      }
+      const activeCount = await db.collection("appointments").countDocuments({
+        groupKey: nextGroupKey,
+        status: { $in: ACTIVE_APPOINTMENT_STATUSES },
+        _id: { $ne: appointment._id },
+      });
+      if (
+        activeCount >= nextCapacity ||
+        !(await reserveCapacity(db, {
+          groupKey: nextGroupKey,
+          capacity: nextCapacity,
+          activeCount,
+        }))
+      ) {
+        return Response.json(
+          { message: "The requested session is full." },
+          { status: 409 },
+        );
+      }
+      provisionalCapacity = { db, groupKey: nextGroupKey };
+    }
+    const filter = { _id: appointment._id };
+    if (body.version) filter.version = Number(body.version);
     const result = await db
       .collection("appointments")
-      .updateOne({ _id: new ObjectId(id) }, { $set: { status } });
-
-    if (result.modifiedCount > 0) {
-      // Send status-update email after status change (non-blocking)
-      sendEmail({
-        email: appointment.email,
-        name: appointment.name,
-        status,
-        selectedDate: appointment.selectedDate,
-        selectedTime: appointment.selectedTime,
-        selectedTimezone: appointment.selectedTimezone,
-        appointmentId: id,
-      }).catch((err) =>
-        console.error("Status email failed (non-fatal):", err.message),
+      .findOneAndUpdate(
+        filter,
+        { $set: update, $inc: { version: 1 } },
+        { returnDocument: "after" },
       );
-
-      return new Response(
-        JSON.stringify({
-          message: `Appointment status updated to ${status}.`,
-          status,
-        }),
-        { status: 200 },
+    if (!result) {
+      if (provisionalCapacity) {
+        await decrementCapacity(
+          provisionalCapacity.db,
+          provisionalCapacity.groupKey,
+        );
+        provisionalCapacity = null;
+      }
+      return Response.json(
+        { message: "This booking changed elsewhere. Refresh and try again." },
+        { status: 409 },
       );
     }
+    provisionalCapacity = null;
+    if (capacityTransition.releasePrevious) {
+      await decrementCapacity(db, appointment.groupKey);
+    }
+    if (isReschedule || result.status !== "approved") {
+      await cancelAppointmentReminders(db, appointment);
+    }
+    appointment = result;
 
-    // modifiedCount === 0 means it was already that status
-    return new Response(
-      JSON.stringify({ message: "No changes made to the appointment." }),
-      { status: 200 },
-    );
+    if (transition)
+      await enqueueAppointmentNotifications(db, appointment, transition);
+    await runLifecycleJobs(db, appointment);
+    appointment = await db
+      .collection("appointments")
+      .findOne({ _id: appointment._id });
+    const coach = await db
+      .collection("users")
+      .findOne({ _id: new ObjectId(appointment.coachId) });
+    if (appointment.status === "approved") {
+      await scheduleAppointmentReminders(db, appointment, coach).catch(
+        (error) => console.error("Reminder scheduling deferred:", error),
+      );
+    }
+    return Response.json(appointment);
   } catch (error) {
-    console.error("Error updating appointment status:", error);
-    return new Response(
-      JSON.stringify({
-        message: "Error updating appointment status.",
-        error: error.message,
-      }),
-      { status: 500 },
-    );
+    if (provisionalCapacity) {
+      await decrementCapacity(
+        provisionalCapacity.db,
+        provisionalCapacity.groupKey,
+      ).catch(() => {});
+    }
+    console.error("Appointment update failed:", error);
+    return errorResponse(error, "Unable to update the appointment.");
   }
 }
 
-// GET request: Fetch appointments with optional status filtering
-export async function GET(req) {
-  const { db } = await connectToDatabase();
-  const url = new URL(req.url);
-  const coachId = url.searchParams.get("coachId");
-  const studentId = url.searchParams.get("studentId");
-  const status = url.searchParams.get("status");
-  const selectedDate = url.searchParams.get("selectedDate");
-  const selectedTime = url.searchParams.get("selectedTime");
-  const { ObjectId } = require("mongodb");
-
-  if (!coachId) {
-    return new Response(JSON.stringify({ message: "Coach ID is required." }), {
-      status: 400,
-    });
-  }
-
+export async function GET(request) {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Resolve coach ID and fetch details
-    let resolvedCoachId = coachId;
-    let coachDetails = null;
-
-    if (!ObjectId.isValid(coachId)) {
-      const coach = await db.collection("users").findOne({
-        username: coachId,
-        role: "coach",
-      });
-
-      if (!coach) {
-        return new Response(
-          JSON.stringify({
-            message: "Coach not found with the provided identifier.",
-          }),
-          { status: 404 },
-        );
-      }
-      resolvedCoachId = coach._id.toString();
-      coachDetails = {
-        username: coach.username,
-        name: coach.name,
-        email: coach.email,
+    const session = await requireSession(["coach", "student", "admin"]);
+    const connection = await connectToDatabase();
+    const db = connection.db;
+    const url = new URL(request.url);
+    const query = {};
+    if (session.user.role === "coach")
+      query.coachId = { $in: idsFor(session.user.id) };
+    if (session.user.role === "student")
+      query.studentId = { $in: idsFor(session.user.id) };
+    if (session.user.role === "admin") {
+      const coachId = url.searchParams.get("coachId");
+      const studentId = url.searchParams.get("studentId");
+      if (coachId) query.coachId = { $in: idsFor(coachId) };
+      if (studentId) query.studentId = { $in: idsFor(studentId) };
+    }
+    const status = normalizeAppointmentStatus(url.searchParams.get("status"));
+    if (status)
+      query.status = {
+        $in: [status, status[0].toUpperCase() + status.slice(1)],
       };
-    } else {
-      coachDetails = await db
-        .collection("users")
-        .findOne(
-          { _id: new ObjectId(coachId), role: "coach" },
-          { projection: { username: 1, name: 1, email: 1 } },
-        );
-
-      if (!coachDetails) {
-        return new Response(
-          JSON.stringify({ message: "Coach not found with the provided ID." }),
-          { status: 404 },
-        );
-      }
-    }
-
-    // Build query — match both ObjectId and legacy string coachId
-    const coachIdObjectId = ObjectId.isValid(resolvedCoachId)
-      ? new ObjectId(resolvedCoachId)
-      : null;
-    const query = {
-      coachId: coachIdObjectId
-        ? { $in: [coachIdObjectId, resolvedCoachId] }
-        : resolvedCoachId,
-      ...(status && { status }),
-      selectedDate: { $gte: today },
-    };
-
+    const selectedDate = url.searchParams.get("selectedDate");
     if (selectedDate) {
-      const parsedDate = new Date(selectedDate);
-      if (isNaN(parsedDate)) {
-        return new Response(
-          JSON.stringify({ message: "Invalid selectedDate format." }),
-          { status: 400 },
-        );
-      }
-
-      if (status === "pending") {
-        query.selectedDate = { $gte: today };
-      } else {
-        query.selectedDate = parsedDate;
-      }
+      const start = new Date(`${selectedDate.slice(0, 10)}T00:00:00.000Z`);
+      const end = new Date(`${selectedDate.slice(0, 10)}T23:59:59.999Z`);
+      query.selectedDate = { $gte: start, $lte: end };
+    } else if (url.searchParams.get("includePast") !== "true") {
+      query.$or = [
+        { startAt: { $gte: new Date() } },
+        { startAt: { $exists: false }, selectedDate: { $gte: new Date() } },
+      ];
     }
-
-    if (selectedTime) {
-      query.selectedTime = selectedTime;
-    }
-
+    const selectedTime = url.searchParams.get("selectedTime");
+    if (selectedTime) query.selectedTime = selectedTime;
     const appointments = await db
       .collection("appointments")
-      .find(query)
+      .find(query, { projection: SAFE_PROJECTION })
+      .sort({ startAt: 1, selectedDate: 1 })
+      .limit(1000)
       .toArray();
-
-    const enhancedAppointments = appointments.map((appointment) => ({
-      ...appointment,
-      coachDetails,
-    }));
-
-    return new Response(JSON.stringify(enhancedAppointments), { status: 200 });
-  } catch (error) {
-    console.error("Error fetching appointments:", error);
-    return new Response(
-      JSON.stringify({ message: "Error fetching appointments." }),
-      { status: 500 },
+    return Response.json(
+      appointments.map((item) => ({
+        ...item,
+        status: normalizeAppointmentStatus(item.status),
+      })),
     );
+  } catch (error) {
+    return errorResponse(error, "Unable to load appointments.");
   }
 }

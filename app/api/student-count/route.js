@@ -1,4 +1,5 @@
 import connectToDatabase from "../../../Lib/mongodb";
+import { ObjectId } from "mongodb";
 
 export async function GET(req) {
   const { db } = await connectToDatabase();
@@ -18,7 +19,6 @@ export async function GET(req) {
     let actualCoachId = coachId;
     
     // First, check if coachId is a username and get the actual ObjectId
-    const { ObjectId } = require("mongodb");
     if (!ObjectId.isValid(coachId)) {
       // console.log("Not a valid ObjectId, looking up coach by username...");
       
@@ -159,5 +159,4 @@ export async function GET(req) {
 //     );
 //   }
 // }
-
 

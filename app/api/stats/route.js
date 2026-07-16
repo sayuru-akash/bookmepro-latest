@@ -1,75 +1,45 @@
-import connectToDatabase from "../../../Lib/mongodb"; 
-import { NextResponse } from "next/server";
+import { ObjectId } from "mongodb";
+import connectToDatabase from "../../../Lib/mongodb";
+import {
+  errorResponse,
+  requireSession,
+} from "../../../Lib/auth/requireSession";
 
-// Utility function to check if the provided date is valid
-const isValidDate = (dateString) => {
-  const date = new Date(dateString);
-  return !isNaN(date.getTime());
-};
-
-export async function GET(req) {
-  const { db } = await connectToDatabase();
-  const { searchParams } = new URL(req.url);
-  
-  // Extract query parameters
-  const coachId = searchParams.get("coachId");
-  const fromDate = searchParams.get("fromDate");
-  const toDate = searchParams.get("toDate");
-  const allTime = searchParams.get("allTime") === "true";
-  
-  // Ensure coachId is provided
-  if (!coachId) {
-    return new Response(
-      JSON.stringify({ message: "coachId is required." }),
-      { status: 400 }
-    );
-  }
-
-  // Initialize the query object with coachId
-  const query = { coachId };
-
+export async function GET(request) {
   try {
-    // Handle allTime filter
-    if (allTime) {
-      delete query.selectedDate; // Remove selectedDate filter if allTime is true
-    } else if (fromDate && toDate) {
-      // Validate date format for fromDate and toDate
-      if (!isValidDate(fromDate) || !isValidDate(toDate)) {
-        return NextResponse.json(
-          { message: "Invalid date format provided." },
-          { status: 400 }
-        );
+    const session = await requireSession(["coach"]);
+    const { db } = await connectToDatabase();
+    const { searchParams } = new URL(request.url);
+    const coachIds = ObjectId.isValid(session.user.id)
+      ? [session.user.id, new ObjectId(session.user.id)]
+      : [session.user.id];
+    const query = { coachId: { $in: coachIds } };
+    if (searchParams.get("allTime") !== "true") {
+      if (searchParams.get("fromDate") && searchParams.get("toDate")) {
+        const start = new Date(searchParams.get("fromDate"));
+        const end = new Date(searchParams.get("toDate"));
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+          return Response.json(
+            { message: "Invalid date range." },
+            { status: 400 },
+          );
+        }
+        query.selectedDate = { $gte: start, $lte: end };
+      } else {
+        const start = new Date();
+        start.setHours(0, 0, 0, 0);
+        const end = new Date();
+        end.setHours(23, 59, 59, 999);
+        query.selectedDate = { $gte: start, $lte: end };
       }
-      // Add selectedDate filter for a specific date range
-      query.selectedDate = {
-        $gte: new Date(fromDate),
-        $lte: new Date(toDate),
-      };
-    } else {
-      // Default to today's date if no fromDate or toDate provided
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0); // Start of today (midnight)
-      const endOfToday = new Date();
-      endOfToday.setHours(23, 59, 59, 999); // End of today (one millisecond before midnight)
-
-      query.selectedDate = {
-        $gte: startOfToday,
-        $lte: endOfToday,
-      };
     }
-
-    // Fetch the appointments from the database
     const appointments = await db
       .collection("appointments")
-      .find(query)
+      .find(query, { projection: { _id: 1 } })
+      .limit(10000)
       .toArray();
-
-    // Return the fetched appointments as JSON
-    return NextResponse.json({ appointments }, { status: 200 });
+    return Response.json({ appointments, count: appointments.length });
   } catch (error) {
-    console.error("Error fetching data:", error);
-    return new Response("An error occurred while fetching data", {
-      status: 500,
-    });
+    return errorResponse(error, "Unable to load booking totals.");
   }
 }

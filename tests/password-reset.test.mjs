@@ -52,10 +52,10 @@ function setupForgotPasswordMocks({ userExists = true, throwDbError = false } = 
     : mock.fn(async () => user);
   const connectDBMock = mock.fn(async () => {});
 
-  const restoreUser = mock.module('../models/user', { cache: false, defaultExport: { findOne: findOneMock } });
-  const restoreEmail = mock.module('../utils/sendEmail', { cache: false, namedExports: { sendEmail: sendEmailMock } });
-  const restoreDB = mock.module('../Lib/mongodb', { cache: false, defaultExport: connectDBMock });
-  const restoreNext = mock.module('next/server', { cache: false, namedExports: NEXT_RESPONSE_MOCK });
+  const restoreUser = mock.module('../models/user', { cache: false, exports: { default: { findOne: findOneMock } } });
+  const restoreEmail = mock.module('../utils/sendEmail', { cache: false, exports: { sendEmail: sendEmailMock } });
+  const restoreDB = mock.module('../Lib/mongodb', { cache: false, exports: { default: connectDBMock } });
+  const restoreNext = mock.module('next/server', { cache: false, exports: NEXT_RESPONSE_MOCK });
 
   return {
     sendEmailMock,
@@ -81,9 +81,9 @@ function setupResetPasswordMocks({ validToken = true, throwDbError = false } = {
     ? mock.fn(() => { throw new Error('DB Error'); })
     : mock.fn(() => ({ select: selectMock }));
 
-  const restoreUser = mock.module('../models/user', { cache: false, defaultExport: { findOne: findOneMock } });
-  const restoreDB = mock.module('../Lib/mongodb', { cache: false, defaultExport: connectDBMock });
-  const restoreNext = mock.module('next/server', { cache: false, namedExports: NEXT_RESPONSE_MOCK });
+  const restoreUser = mock.module('../models/user', { cache: false, exports: { default: { findOne: findOneMock } } });
+  const restoreDB = mock.module('../Lib/mongodb', { cache: false, exports: { default: connectDBMock } });
+  const restoreNext = mock.module('next/server', { cache: false, exports: NEXT_RESPONSE_MOCK });
 
   return {
     findOneMock,

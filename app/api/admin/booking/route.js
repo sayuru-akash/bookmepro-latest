@@ -2,14 +2,18 @@
 import connectToDatabase from "../../../../Lib/mongodb";
 import Appointment from "../../../../models/appointment";
 import User from "../../../../models/user";
+import {
+  errorResponse,
+  requireSession,
+} from "../../../../Lib/auth/requireSession";
 
 export async function GET(req) {
-  await connectToDatabase();
-
   try {
+    await requireSession(["admin"]);
+    await connectToDatabase();
     const appointments = await Appointment.find(
       {},
-      "name selectedDate selectedTime status appointmentDetails coachId"
+      "name selectedDate selectedTime status appointmentDetails coachId",
     ).sort({ createdAt: -1 });
 
     // Enhance each appointment with the coach's name from the User collection
@@ -19,7 +23,7 @@ export async function GET(req) {
         if (appointment.coachId) {
           const coach = await User.findById(
             appointment.coachId,
-            "firstName lastName"
+            "firstName lastName",
           );
           if (coach) {
             coachName = `${coach.firstName} ${coach.lastName}`;
@@ -29,7 +33,7 @@ export async function GET(req) {
           ...appointment.toObject(),
           coachName,
         };
-      })
+      }),
     );
 
     return new Response(JSON.stringify(appointmentsWithCoach), {
@@ -38,15 +42,6 @@ export async function GET(req) {
     });
   } catch (error) {
     console.error("Error fetching bookings:", error);
-    return new Response(
-      JSON.stringify({
-        message: "Error fetching bookings",
-        error: error.message,
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    return errorResponse(error, "Unable to load admin bookings.");
   }
 }

@@ -4,9 +4,21 @@ import mongoose from "mongoose";
 const userSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    provider: {
+      type: String,
+      enum: ["credentials", "google"],
+      default: "credentials",
+      required: true,
+    },
+    password: {
+      type: String,
+      required() {
+        return this.provider !== "google";
+      },
+      default: "",
+    },
     name: { type: String, default: "" },
-    contact: { type: String, required: true },
+    contact: { type: String, default: "" },
     profilePhoto: {
       type: String,
       default: "/images/coach/defaultprofile.jpg",

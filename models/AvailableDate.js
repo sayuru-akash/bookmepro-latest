@@ -10,6 +10,7 @@ const availableDateSchema = new Schema({
     {
       time: { type: String, required: true },
       multipleBookings: { type: Boolean, default: false },
+      capacity: { type: Number, min: 1, max: 500, default: 1 },
       timezone: { type: String, required: true },
       location: { type: String },
     },

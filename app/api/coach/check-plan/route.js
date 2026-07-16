@@ -1,5 +1,6 @@
 import connectToDatabase from "../../../../Lib/mongodb";
 import User from "../../../../models/user";
+import { ObjectId } from "mongodb";
 
 export async function GET(req) {
   const { db } = await connectToDatabase();
@@ -35,7 +36,6 @@ export async function GET(req) {
     // Fallback logic
     if (appointments.length === 0) {
       try {
-        const { ObjectId } = require("mongodb");
         query = { coachId: new ObjectId(coachId) };
         appointments = await db
           .collection("appointments")

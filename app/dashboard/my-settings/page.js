@@ -29,6 +29,7 @@ import axios from "axios";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import CircularProgress from "@mui/material/CircularProgress";
+import GoogleCalendarSettings from "../../../components/GoogleCalendarSettings";
 
 const xThemeComponents = {
   ...chartsCustomizations,
@@ -512,6 +513,10 @@ export default function Dashboard(props) {
               </div>
             </div>
           </form>
+
+          <Box sx={{ px: { xs: 3, sm: 6 }, pb: { xs: 2, sm: 4 } }}>
+            <GoogleCalendarSettings ownerType="coach" />
+          </Box>
 
           {/* Divider */}
           <Box

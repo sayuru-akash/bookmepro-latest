@@ -18,7 +18,7 @@ import {
   Visibility,
   VisibilityOff,
 } from "@mui/icons-material";
-import { signIn, useSession } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 
 export default function StudentLogin({ onSuccess, coachId }) {
   const router = useRouter();
@@ -26,9 +26,31 @@ export default function StudentLogin({ onSuccess, coachId }) {
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const resendVerification = async () => {
+    if (!formData.email) {
+      setErrors({ email: "Enter your email address first" });
+      return;
+    }
+    setResending(true);
+    try {
+      const response = await fetch("/api/auth/student/resend-verification", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: formData.email }),
+      });
+      const data = await response.json();
+      setMessage(data.message || "Check your email for a verification link.");
+    } catch {
+      setMessage("Unable to resend verification right now.");
+    } finally {
+      setResending(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -66,15 +88,16 @@ export default function StudentLogin({ onSuccess, coachId }) {
       }
 
       if (result?.ok) {
+        const authenticatedSession = await getSession();
         const user = {
-          id: result?.user?.id,
-          email: result?.user?.email,
-          name: result?.user?.name,
+          id: authenticatedSession?.user?.id,
+          email: authenticatedSession?.user?.email,
+          name: authenticatedSession?.user?.name,
           role: "student",
         };
-        localStorage.setItem("token", result?.token);
         localStorage.setItem("user", JSON.stringify(user));
         if (onSuccess) onSuccess(user);
+        router.refresh();
       }
     } catch (error) {
       const errorMessage = error.response?.data?.message || "Login failed.";
@@ -227,6 +250,15 @@ export default function StudentLogin({ onSuccess, coachId }) {
           }}
         >
           Sign In
+        </Button>
+        <Button
+          type="button"
+          fullWidth
+          onClick={resendVerification}
+          disabled={resending}
+          sx={{ mt: 1, color: "#037D40", textTransform: "none" }}
+        >
+          {resending ? "Sending…" : "Resend verification email"}
         </Button>
       </form>
     </Box>

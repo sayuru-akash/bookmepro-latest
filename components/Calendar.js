@@ -66,6 +66,7 @@ export default function Calendar() {
   const [error, setError] = useState(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [bookingAttemptId, setBookingAttemptId] = useState(null);
   const [studentExceeded, setStudentExceeded] = useState(false);
   const [studentLimitInfo, setStudentLimitInfo] = useState({
     current: 0,
@@ -85,6 +86,7 @@ export default function Calendar() {
     setSelectedTime(null);
     setTimeSlots([]);
     setBookingMessage("");
+    setBookingAttemptId(null);
     setFormErrors({});
   };
 
@@ -245,116 +247,35 @@ export default function Calendar() {
 
   // Handle time selection.
   // Accepts the full slot object so same-time/different-location slots are unambiguous.
-  const handleTimeSelect = async (selectedTimeSlot) => {
-    try {
-      if (!selectedTimeSlot) {
-        setBookingMessage("Selected time slot is not valid.");
-        setMessageType("error");
-        return;
-      }
-
-      // Get the timezone from the slot or fall back to default
-      const timezone = selectedTimeSlot.timezone || "Australia/Melbourne";
-
-      // The specific location for this slot (null when location mode was not used)
-      const slotLocation = selectedTimeSlot.location || null;
-
-      // Convert selected date to the coach's timezone for accurate comparison
-      const selectedDateInTimezone = dayjs(selectedDate).tz(timezone);
-
-      const existingAppointments = await fetchExistingAppointments(
-        selectedDateInTimezone.toDate(),
-        selectedTimeSlot.time,
-      );
-
-      // Check if this student already booked this exact slot (time + location)
-      if (student) {
-        const existingStudentBooking = existingAppointments.some((app) => {
-          const appDate = dayjs(app.selectedDate).tz(timezone);
-          const appTime = app.selectedTime?.value ?? app.selectedTime;
-          const appLocation = app.location || null;
-          return (
-            app.studentId === student.id &&
-            (app.status === "pending" || app.status === "Approved") &&
-            appDate.isSame(selectedDateInTimezone, "day") &&
-            appTime === selectedTimeSlot.time &&
-            appLocation === slotLocation // must match location too
-          );
-        });
-
-        if (existingStudentBooking) {
-          setBookingMessage("You already have a booking for this time slot.");
-          setMessageType("error");
-          setSelectedTime(null);
-          return;
-        }
-      }
-
-      // Check for individual bookings — scoped to this specific time + location.
-      // A booking at Location A does NOT block Location B at the same time.
-      const hasIndividualBooking = existingAppointments.some((app) => {
-        const appDate = dayjs(app.selectedDate).tz(timezone);
-        const appTime = app.selectedTime?.value ?? app.selectedTime;
-        const appLocation = app.location || null;
-        return (
-          app.isIndividualSession &&
-          (app.status === "pending" || app.status === "Approved") &&
-          appDate.isSame(selectedDateInTimezone, "day") &&
-          appTime === selectedTimeSlot.time &&
-          appLocation === slotLocation // different locations remain bookable
-        );
-      });
-
-      if (hasIndividualBooking) {
-        setBookingMessage("This individual session is already booked.");
-        setMessageType("error");
-        setSelectedTime(null);
-        return;
-      }
-
-      setIsIndividualSession(!selectedTimeSlot.multipleBookings);
-
-      if (selectedTimeSlot.multipleBookings) {
-        setBookingMessage("You can book this time slot for multiple users.");
-        setMessageType("success");
-      } else {
-        setBookingMessage("This is an individual session.");
-        setMessageType("info");
-      }
-
-      // Store the complete slot object including timezone and location
-      setSelectedTime({
-        value: selectedTimeSlot.time,
-        timezone: timezone,
-        location: slotLocation,
-        slotData: selectedTimeSlot,
-      });
-    } catch (error) {
-      console.error("Error in handleTimeSelect:", error);
-      setBookingMessage("An unexpected error occurred. Please try again.");
+  const handleTimeSelect = (selectedTimeSlot) => {
+    if (!selectedTimeSlot) {
+      setBookingMessage("Selected time slot is not valid.");
       setMessageType("error");
+      return;
     }
-  };
 
-  // Fetch existing appointments
-  const fetchExistingAppointments = async (date, time) => {
-    try {
-      if (!date || !time) {
-        console.warn(
-          "fetchExistingAppointments called with invalid date or time",
-        );
-        return [];
-      }
+    const slotTimezone = selectedTimeSlot.timezone || "Australia/Melbourne";
+    const isIndividual = !selectedTimeSlot.multipleBookings;
+    setIsIndividualSession(isIndividual);
+    setBookingAttemptId(crypto.randomUUID());
+    setSelectedTime({
+      value: selectedTimeSlot.time,
+      timezone: slotTimezone,
+      location: selectedTimeSlot.location || null,
+      slotData: selectedTimeSlot,
+    });
 
-      const formattedDate = dayjs(date).format("YYYY-MM-DD");
-      const response = await axios.get(
-        `/api/appointments?coachId=${coachId}&selectedDate=${formattedDate}&selectedTime=${time}`,
+    if (isIndividual) {
+      setBookingMessage("This is an individual session.");
+      setMessageType("info");
+    } else {
+      const remaining = selectedTimeSlot.capacityRemaining;
+      setBookingMessage(
+        Number.isFinite(remaining)
+          ? `${remaining} ${remaining === 1 ? "place" : "places"} remaining in this group session.`
+          : "This is a group session.",
       );
-
-      return response.data;
-    } catch (error) {
-      console.error("Error fetching existing appointments:", error);
-      return [];
+      setMessageType("success");
     }
   };
 
@@ -389,29 +310,33 @@ export default function Calendar() {
         appointmentDetails: formData.appointmentDetails,
       };
 
-      // Log for debugging (optional)
-      console.log("Fetched student data:", updatedStudentData);
-
       // Submit the appointment with updated data
-      const response = await axios.post("/api/appointments", {
-        name: updatedFormData.name,
-        email: updatedFormData.email,
-        phone: updatedFormData.phone,
-        address: updatedFormData.address,
-        appointmentDetails: updatedFormData.appointmentDetails,
-        selectedDate: dayjs(selectedDate).format("YYYY-MM-DD"),
-        selectedTime,
-        isIndividualSession,
-        coachId,
-        studentId: student.id,
-        // Persist the specific location so duplicate checks and display are location-aware
-        location: selectedTime?.location ?? null,
-      });
+      const response = await axios.post(
+        "/api/appointments",
+        {
+          name: updatedFormData.name,
+          email: updatedFormData.email,
+          phone: updatedFormData.phone,
+          address: updatedFormData.address,
+          appointmentDetails: updatedFormData.appointmentDetails,
+          selectedDate: dayjs(selectedDate).format("YYYY-MM-DD"),
+          selectedTime,
+          isIndividualSession,
+          coachId,
+          studentId: student.id,
+          // Persist the specific location so duplicate checks and display are location-aware
+          location: selectedTime?.location ?? null,
+          idempotencyKey: bookingAttemptId,
+        },
+        {
+          headers: { "Idempotency-Key": bookingAttemptId },
+        },
+      );
 
       if (response.status === 201) {
         setToast({
           show: true,
-          message: "Appointment booked successfully!",
+          message: "Booking request sent successfully!",
           type: "success",
         });
 

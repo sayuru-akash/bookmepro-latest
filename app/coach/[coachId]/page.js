@@ -23,7 +23,9 @@ export default function CoachProfilePage() {
       try {
         const response = await axios.get(`/api/coach/${coachId}`);
         setCoach(response.data);
-        setSelectedImage(response.data.gallery?.[0] || "/default-image.jpg");
+        setSelectedImage(
+          response.data.gallery?.[0] || "/images/coach/defaultprofile.jpg",
+        );
       } catch (error) {
         console.error("Error loading coach data:", error);
         setError("Unable to load coach profile.");
@@ -108,7 +110,7 @@ export default function CoachProfilePage() {
                   Email:
                   <Link
                     href={`mailto:${coach.email || ""}`}
-                    className="text-blue-600 underline"
+                    className="text-blue-600 underline break-all"
                   >
                     {coach.email || "Not Provided"}
                   </Link>

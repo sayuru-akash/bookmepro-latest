@@ -97,7 +97,7 @@ export default function CustomizedDataGrid() {
       });
 
       if (response.status === 200) {
-        if (status === "Declined") {
+        if (status === "declined") {
           toast.error("Appointment declined.", {
             style: { background: "#D50000", color: "#fff" },
             progressStyle: { background: "#fff" },
@@ -109,7 +109,7 @@ export default function CustomizedDataGrid() {
         fetchAppointments(selectedStatus);
       } else {
         toast.error(
-          status === "Declined"
+          status === "declined"
             ? "Failed to decline appointment."
             : "Failed to approve appointment.",
         );
@@ -117,7 +117,7 @@ export default function CustomizedDataGrid() {
     } catch (error) {
       console.error("Error updating status:", error);
       toast.error(
-        status === "Declined"
+        status === "declined"
           ? "Failed to decline appointment."
           : "Failed to approve appointment.",
       );
@@ -280,7 +280,7 @@ export default function CustomizedDataGrid() {
                     },
                   }}
                 >
-                  <MenuItem value="Declined">
+                  <MenuItem value="declined">
                     <CircleX size={24} color="#D50000" />
                   </MenuItem>
                 </Select>
@@ -315,10 +315,10 @@ export default function CustomizedDataGrid() {
                   },
                 }}
               >
-                <MenuItem value="Declined">
+                <MenuItem value="declined">
                   <CircleX size={24} color="#D50000" />
                 </MenuItem>
-                <MenuItem value="Approved">
+                <MenuItem value="approved">
                   <CircleCheck size={24} color="#037D40" />
                 </MenuItem>
               </Select>
@@ -352,7 +352,7 @@ export default function CustomizedDataGrid() {
                   padding: "8px 16px",
                 }}
                 size="small"
-                onClick={() => handleStatusUpdate(params.row._id, "Declined")}
+                onClick={() => handleStatusUpdate(params.row._id, "declined")}
               >
                 <CircleX /> Decline
               </Button>
@@ -386,7 +386,7 @@ export default function CustomizedDataGrid() {
                 fontFamily: "Kanit, sans-serif",
               }}
               size="small"
-              onClick={() => handleStatusUpdate(params.row._id, "Declined")}
+              onClick={() => handleStatusUpdate(params.row._id, "declined")}
             >
               <CircleX /> Decline
             </Button>
@@ -403,7 +403,7 @@ export default function CustomizedDataGrid() {
                 fontFamily: "Kanit, sans-serif",
               }}
               size="small"
-              onClick={() => handleStatusUpdate(params.row._id, "Approved")}
+              onClick={() => handleStatusUpdate(params.row._id, "approved")}
             >
               <CircleCheck /> Approve
             </Button>
@@ -539,7 +539,7 @@ export default function CustomizedDataGrid() {
                 },
               }}
             >
-              {["pending", "Approved", "Declined"].map((status) => (
+              {["pending", "approved", "declined"].map((status) => (
                 <MenuItem key={status} value={status}>
                   {status.charAt(0).toUpperCase() + status.slice(1)}
                 </MenuItem>
@@ -547,7 +547,7 @@ export default function CustomizedDataGrid() {
             </Select>
           ) : (
             // Render buttons for larger screens
-            ["pending", "Approved", "Declined"].map((status) => (
+            ["pending", "approved", "declined"].map((status) => (
               <Button
                 key={status}
                 onClick={() => fetchAppointments(status)}

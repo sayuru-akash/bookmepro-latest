@@ -22,9 +22,12 @@ export const authOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Email and password are required.");
+        }
         await connectToDatabase();
         const email = credentials.email.toLowerCase();
-        const user = await User.findOne({ email: credentials.email }).lean();
+        const user = await User.findOne({ email }).lean();
         if (!user) throw new Error("No user found with that email.");
         if (!user.password) throw new Error("Invalid authentication method");
 
@@ -59,11 +62,17 @@ export const authOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Email and password are required.");
+        }
         await connectToDatabase();
         const student = await Student.findOne({
-          email: credentials.email,
+          email: credentials.email.toLowerCase(),
         }).lean();
         if (!student) throw new Error("No student found with that email.");
+        if (!student.emailVerifiedAt) {
+          throw new Error("Please verify your email before signing in.");
+        }
 
         const isValid = await bcrypt.compare(
           credentials.password,
@@ -74,7 +83,7 @@ export const authOptions = {
         return {
           id: student._id.toString(),
           email: student.email,
-          name: student.name,
+          name: student.name || student.fullName,
           role: "student",
         };
       },
@@ -88,6 +97,9 @@ export const authOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          throw new Error("Email and password are required.");
+        }
         await connectToDatabase();
         const admin = await Admin.findOne({
           email: credentials.email,
@@ -121,27 +133,33 @@ export const authOptions = {
       if (account?.provider === "google") {
         try {
           await connectToDatabase();
-          const existingUser = await User.findOne({ email: user.email }).lean();
+          const email = user.email.toLowerCase();
+          const existingUser = await User.findOne({ email }).lean();
           if (!existingUser) {
-            await User.create({
-              email: user.email,
-              name: user.name || "",
-              firstName: user.name?.split(" ")[0] || "",
-              lastName: user.name?.split(" ").slice(1).join(" ") || "",
-              profilePhoto: user.image || "",
-              paymentStatus: "inactive",
-              role: "coach",
-              billingCycle: "monthly",
-              provider: "google",
-              createdAt: new Date(),
-              stripeCustomerId: null,
-              stripeSubscriptionId: null,
-              plan: "starter",
-              maxStudents: 25,
-              contact: "",
-              nextResetDate: new Date(),
-              password: "",
-            });
+            try {
+              await User.create({
+                email: user.email.toLowerCase(),
+                name: user.name || "",
+                firstName: user.name?.split(" ")[0] || "",
+                lastName: user.name?.split(" ").slice(1).join(" ") || "",
+                profilePhoto: user.image || "",
+                paymentStatus: "inactive",
+                role: "coach",
+                billingCycle: "monthly",
+                provider: "google",
+                createdAt: new Date(),
+                stripeCustomerId: null,
+                stripeSubscriptionId: null,
+                plan: "starter",
+                maxStudents: 25,
+                contact: "",
+                nextResetDate: new Date(),
+                password: "",
+              });
+            } catch (error) {
+              // A concurrent callback may have created the same OAuth user.
+              if (error?.code !== 11000) throw error;
+            }
           }
           return true;
         } catch (error) {
@@ -154,6 +172,29 @@ export const authOptions = {
     async jwt({ token, user }) {
       // When a user is returned on sign-in, set token values.
       if (user) {
+        // OAuth provider users do not carry BookMePro role/billing fields.
+        // Resolve the canonical database identity on the first callback so the
+        // first redirected request is authenticated with the correct user id.
+        if (!user.role && user.email) {
+          await connectToDatabase();
+          const dbUser = await User.findOne({
+            email: user.email.toLowerCase(),
+          }).lean();
+          if (dbUser) {
+            user = {
+              ...user,
+              id: dbUser._id.toString(),
+              role: dbUser.role || "coach",
+              paymentStatus: dbUser.paymentStatus,
+              stripeCustomerId: dbUser.stripeCustomerId,
+              stripeSubscriptionId: dbUser.stripeSubscriptionId,
+              plan: dbUser.plan,
+              billingCycle: dbUser.billingCycle,
+              profilePhoto: dbUser.profilePhoto,
+              maxStudents: dbUser.maxStudents,
+            };
+          }
+        }
         token = {
           ...token,
           id: user.id,

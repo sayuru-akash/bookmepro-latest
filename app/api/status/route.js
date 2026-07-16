@@ -1,66 +1,41 @@
-// app/api/status/route.js
+import { ObjectId } from "mongodb";
 import connectToDatabase from "../../../Lib/mongodb";
+import {
+  errorResponse,
+  requireSession,
+} from "../../../Lib/auth/requireSession";
 
-export async function GET(req) {
-  const { db } = await connectToDatabase();
-  const url = new URL(req.url);
-  const coachId = url.searchParams.get("coachId");
-
-  if (!coachId) {
-    return new Response(JSON.stringify({ message: "Coach ID is required." }), {
-      status: 400,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-  }
-
+export async function GET() {
   try {
-    // First get all appointments for this coach
-    const query = { coachId };
-
-    // Get all appointments by status
-    const [approved, declined, pending] = await Promise.all([
-      db.collection("appointments").find({ ...query, status: "Approved" }).toArray(),
-      db.collection("appointments").find({ ...query, status: "Declined" }).toArray(),
-      db.collection("appointments").find({ ...query, status: "pending" }).toArray(),
-    ]);
-
-    // Calculate counts and percentages
-    const approvedCount = approved.length;
-    const declinedCount = declined.length;
-    const pendingCount = pending.length;
-    const total = approvedCount + declinedCount + pendingCount;
-
-    const response = {
+    const session = await requireSession(["coach"]);
+    const { db } = await connectToDatabase();
+    const coachIds = ObjectId.isValid(session.user.id)
+      ? [session.user.id, new ObjectId(session.user.id)]
+      : [session.user.id];
+    const counts = await db
+      .collection("appointments")
+      .aggregate([
+        { $match: { coachId: { $in: coachIds } } },
+        { $set: { normalizedStatus: { $toLower: "$status" } } },
+        { $group: { _id: "$normalizedStatus", count: { $sum: 1 } } },
+      ])
+      .toArray();
+    const count = Object.fromEntries(
+      counts.map((item) => [item._id, item.count]),
+    );
+    const total =
+      (count.approved || 0) + (count.declined || 0) + (count.pending || 0);
+    const value = (status) => ({
+      count: count[status] || 0,
+      percentage: total ? Math.round(((count[status] || 0) / total) * 100) : 0,
+    });
+    return Response.json({
       total,
-      approved: {
-        count: approvedCount,
-        percentage: total > 0 ? Math.round((approvedCount / total) * 100) : 0,
-      },
-      declined: {
-        count: declinedCount,
-        percentage: total > 0 ? Math.round((declinedCount / total) * 100) : 0,
-      },
-      pending: {
-        count: pendingCount,
-        percentage: total > 0 ? Math.round((pendingCount / total) * 100) : 0,
-      }
-    };
-
-    return new Response(JSON.stringify(response), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      }
+      approved: value("approved"),
+      declined: value("declined"),
+      pending: value("pending"),
     });
   } catch (error) {
-    console.error("Error fetching appointment stats:", error);
-    return new Response(JSON.stringify({ message: "Error fetching appointment statistics." }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
+    return errorResponse(error, "Unable to load booking statistics.");
   }
 }

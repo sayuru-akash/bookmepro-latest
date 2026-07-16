@@ -55,15 +55,7 @@ export default function StudentSignUp({ onSuccess, coachId: propCoachId }) {
   });
 
   const isValidEmail = (email) => {
-    if (!validator.isEmail(email)) return false;
-    const commonDomains = [
-      "gmail.com",
-      "yahoo.com",
-      "outlook.com",
-      "hotmail.com",
-    ];
-    const emailDomain = email.split("@")[1];
-    return commonDomains.includes(emailDomain);
+    return validator.isEmail(email);
   };
 
   const isValidPhone = (phone) => {

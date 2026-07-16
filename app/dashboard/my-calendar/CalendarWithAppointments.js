@@ -39,7 +39,7 @@ const CalendarWithAppointments = () => {
 
       try {
         const response = await axios.get(
-          `/api/calendar?coachId=${session.user.id}&selectedDate=${formattedDate}`
+          `/api/appointments?selectedDate=${formattedDate}`,
         );
 
         const transformedAppointments = response.data.map((appointment) => {
@@ -115,9 +115,9 @@ const CalendarWithAppointments = () => {
 
   const handleAction = async (row, newStatus) => {
     try {
-      const response = await axios.patch("/api/calendar", {
+      const response = await axios.patch("/api/appointments", {
         id: row.id,
-        status: newStatus,
+        status: newStatus.toLowerCase(),
       });
 
       if (response.status === 200) {
@@ -138,7 +138,7 @@ const CalendarWithAppointments = () => {
               theme: "light",
               icon: <CircleCheck color="#037D40" />, // Green tick icon
               fontFamily: "Kanit, sans-serif",
-            }
+            },
           );
         } else if (newStatus === "Declined") {
           toast.error(`Appointment ${newStatus.toLowerCase()} successfully!`, {
@@ -186,14 +186,13 @@ const CalendarWithAppointments = () => {
 
   // DataGrid columns configuration
   const columns = [
-    { field: "name", headerName: "Name", flex: 1.5, minWidth: 150, },
+    { field: "name", headerName: "Name", flex: 1.5, minWidth: 150 },
     {
       field: "email",
       headerName: "Email",
       fontFamily: "Kanit, sans-serif",
       flex: 1,
       minWidth: 120,
-     
     },
     {
       field: "status",
@@ -204,11 +203,11 @@ const CalendarWithAppointments = () => {
       renderCell: (params) => (
         <span
           className={`px-2 py-1 rounded ${
-            params.value === "Approved"
+            params.value?.toLowerCase() === "approved"
               ? "bg-green-100 text-green-800"
-              : params.value === "Declined"
-              ? "bg-red-100 text-red-800"
-              : "bg-yellow-100 text-yellow-800"
+              : params.value?.toLowerCase() === "declined"
+                ? "bg-red-100 text-red-800"
+                : "bg-yellow-100 text-yellow-800"
           }`}
         >
           {params.value}
@@ -375,8 +374,8 @@ const CalendarWithAppointments = () => {
                     isSelected
                       ? "bg-primary/10 font-bold"
                       : isToday && selectedDate.getDate() === today.getDate()
-                      ? "bg-blue-100 font-bold"
-                      : ""
+                        ? "bg-blue-100 font-bold"
+                        : ""
                   }`}
                 >
                   {day}

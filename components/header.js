@@ -122,7 +122,7 @@ export default function Header({ initialCountryCode }) {
                   isHomePage ? "text-white" : "text-primary"
                 }`}
               >
-                <Link href="/">
+                <Link href="/" className="relative block h-full w-full">
                   <div className="relative h-10 w-36 md:h-[54px] md:w-48">
                     <Image
                       src={

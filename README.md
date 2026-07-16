@@ -11,7 +11,7 @@
 
 Production-grade booking and subscription platform for coaches and service professionals.
 
-BookMePro is built with Next.js App Router and includes profile management, dynamic plan pricing, Stripe checkout flows, role-based dashboards, and automated reminders.
+BookMePro is built with Next.js App Router and includes profile management, role-based dashboards, capacity-safe bookings, Google Calendar synchronization, Brevo transactional email, dynamic plan pricing, and Stripe checkout flows.
 
 ---
 
@@ -52,7 +52,10 @@ Core business capabilities:
 - Country-aware pricing and billing-cycle logic
 - Stripe checkout and subscription webhooks
 - Auth via NextAuth (credentials + Google)
-- Contact and reminder emails via Brevo
+- Verified student accounts and coach-scoped student onboarding
+- Google Calendar conflict checks for coaches and students
+- Coach-owned Calendar events, optional Google Meet, and push-webhook reconciliation
+- Idempotent booking emails and reminders via Brevo
 - Media upload integration via Cloudinary
 
 ---
@@ -63,6 +66,10 @@ Core business capabilities:
 | --- | --- | --- |
 | Authentication | Session auth, Google OAuth, role-aware routing | NextAuth-backed |
 | Booking | Request creation, status updates, coach/student views | API-driven |
+| Booking integrity | Idempotency, optimistic versions, capacity reservation/release | Handles retries and concurrent booking |
+| Google Calendar | Coach event sync, pending holds, Meet links, free/busy checks | Encrypted offline tokens and push watches |
+| Student Calendar | Optional read-only conflict checking | No student events are created |
+| Student accounts | Email verification and verification resend | 24-hour links, 60-second resend cooldown |
 | Pricing | Country + billing cycle pricing | Cookie/location aware |
 | Payments | Subscription checkout and upgrade | Stripe |
 | Notifications | Contact + appointment reminders | Brevo |
@@ -88,7 +95,9 @@ Core business capabilities:
 2. Middleware applies auth/geo behavior
 3. Route handler calls shared integrations from Lib
 4. Database/provider operations execute
-5. Normalized response is returned to client
+5. Durable outbox work is queued for Calendar and email providers
+6. Immediate delivery is attempted; the daily reconciliation cron retries failures
+7. Normalized response is returned to the client
 
 ---
 
@@ -98,15 +107,25 @@ Core business capabilities:
 
 ```mermaid
 flowchart LR
-	A[Student] --> B[Submit Booking Request]
-	B --> C[API Validation]
-	C --> D[Persist Appointment]
-	D --> E[Coach Dashboard]
-	E --> F[Approve or Decline]
-	F --> G[Status Update + Optional Email]
+	A[Verified student] --> B[Submit request]
+	B --> C[Validate availability, Google busy time, and capacity]
+	C --> D[Persist pending appointment]
+	D --> E[Private coach Calendar hold and request emails]
+	E --> F[Coach approves, declines, or reschedules]
+	F --> G[Calendar event and attendees reconciled]
+	G --> H[Status email and 24h / 1h reminders]
 ```
 
-### 4.2 Subscription checkout flow
+### 4.2 Google Calendar ownership model
+
+- Coaches connect Calendar with read-only calendar-list/free-busy access plus the least-privilege `calendar.events.owned` scope.
+- BookMePro writes only to a calendar owned by the connected coach. Shared calendars with writer access are intentionally not offered as destinations because the OAuth scope does not authorize them.
+- Students may connect Calendar for free/busy conflict warnings. BookMePro never writes events to a student calendar.
+- Approved students are added to coach-owned events as attendees. Group bookings share one deterministic event.
+- Disabling pending holds removes existing pending-only events. Cancelling, declining, completing, or marking the final active attendee no-show removes the event and clears stored links.
+- Google push channels notify BookMePro about destination-calendar changes. BookMePro remains the booking source of truth and reconciles managed events from database state.
+
+### 4.3 Subscription checkout flow
 
 ```mermaid
 flowchart LR
@@ -187,12 +206,22 @@ The source of truth is .env.example.
 | NEXTAUTH_SECRET | Yes | NextAuth signing secret |
 | NEXTAUTH_URL | Yes | Auth callback base URL |
 | JWT_SECRET | Yes | Token verification utilities |
-| GOOGLE_CLIENT_ID | Yes | Google OAuth |
-| GOOGLE_CLIENT_SECRET | Yes | Google OAuth |
+| GOOGLE_CLIENT_ID | Yes | Google login OAuth |
+| GOOGLE_CLIENT_SECRET | Yes | Google login OAuth |
+| GOOGLE_CALENDAR_CLIENT_ID | Yes | Calendar OAuth client |
+| GOOGLE_CALENDAR_CLIENT_SECRET | Yes | Calendar OAuth client |
+| GOOGLE_CALENDAR_REDIRECT_URI | Yes | Exact Calendar OAuth callback |
+| GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY | Yes | AES-256-GCM encryption key material |
+| GOOGLE_CALENDAR_STATE_SECRET | Yes | OAuth state signing; falls back to NEXTAUTH_SECRET |
+| GOOGLE_CALENDAR_WEBHOOK_URL | Yes | Public HTTPS Google push callback |
 | STRIPE_SECRET_KEY | Yes | Stripe server API |
 | STRIPE_SECRET | Optional | Legacy fallback key |
 | STRIPE_WEBHOOK_SECRET | Yes | Stripe webhook validation |
-| BREVO_API_KEY | Yes | Email sending |
+| BREVO_API_KEY | Yes | Transactional email and scheduled reminders |
+| BREVO_SENDER_EMAIL | Yes | Verified Brevo sender |
+| BREVO_SENDER_NAME | Yes | Transactional sender name |
+| BREVO_WEBHOOK_SECRET | Yes | Delivery-webhook authentication |
+| CONTACT_RECIPIENT_EMAIL | Yes | Contact-form destination |
 | CRON_SECRET | Recommended | Protecting Vercel cron endpoints |
 | CLOUDINARY_CLOUD_NAME | Yes | Media provider config |
 | CLOUDINARY_API_KEY | Yes | Media provider config |
@@ -207,7 +236,7 @@ The source of truth is .env.example.
 - Use HTTPS URLs for all public/auth URL variables.
 - Use long random secrets for NEXTAUTH_SECRET and JWT_SECRET.
 - Set CRON_SECRET in Vercel production so scheduled reminder routes only accept Vercel cron invocations.
-- The hour-before reminder route is not scheduled in vercel.json by default because it needs frequent execution. Schedule /api/cron/send-hour-before-emails every few minutes only on Vercel Pro or through an external scheduler.
+- `vercel.json` intentionally uses one daily `/api/cron` invocation for Vercel Hobby compatibility. Booking mutations also drain their own outboxes immediately, while Brevo holds future 24-hour and 1-hour sends. The daily job renews Google watches, retries outboxes, and schedules reminders that enter Brevo's 72-hour scheduling window.
 - Restrict and rotate provider keys regularly.
 - Keep environment values isolated per environment (dev/staging/prod).
 
@@ -282,6 +311,8 @@ npm run build
 npm run start
 npm run lint
 npm test
+npm run migrate:calendar
+npm run migrate:calendar:apply
 ```
 
 ### 11.2 Script meanings
@@ -291,6 +322,8 @@ npm test
 - start: run built app
 - lint: repository lint checks
 - test: test suite in tests
+- migrate:calendar: read-only booking/calendar migration preview
+- migrate:calendar:apply: backup the affected collections to `/tmp/bookmepro-backups`, normalize production records, reconcile capacity counters, and create required indexes
 
 ---
 
@@ -317,10 +350,14 @@ npm run build
 
 ### 13.1 Pre-release checklist
 
-1. Environment variables validated in target environment
-2. Stripe webhook configured and tested
-3. Metadata host values validated via NEXT_PUBLIC_SITE_URL
-4. Build artifact and startup command verified
+1. Run `npm run migrate:calendar` against the target database and resolve every reported failure.
+2. Back up the database, then run `npm run migrate:calendar:apply` once per target database.
+3. Validate target environment variables without printing secret values.
+4. Confirm Google OAuth redirect, authorized domain, privacy policy, Terms, and webhook URLs use the production HTTPS origin.
+5. Configure the Brevo delivery webhook as `/api/webhooks/brevo?token=<BREVO_WEBHOOK_SECRET>` and verify its sender.
+6. Confirm Stripe webhook configuration and lookup keys.
+7. Run lint, tests, and the optimized production build.
+8. Smoke-test desktop and mobile auth, booking, Calendar settings, privacy, Terms, and custom 404 pages.
 
 ### 13.2 Deployment targets
 
@@ -333,6 +370,11 @@ npm run build
 
 - Never commit real local env files.
 - Avoid exposing server secrets to client-side code.
+- Calendar access and refresh tokens are encrypted at rest with AES-256-GCM.
+- OAuth state is HMAC authenticated, short-lived, and bound to the signed-in owner.
+- Google and Brevo webhooks verify unguessable server-side secrets before processing.
+- Booking writes require role/ownership checks, optimistic versions, idempotency keys, and atomic capacity counters.
+- Verification-resend responses do not reveal whether an email address is registered.
 - Rotate third-party provider credentials periodically.
 - Keep webhook and OAuth secrets isolated per environment.
 - Monitor auth/payment/email failures through logs and alerting.
@@ -345,23 +387,34 @@ npm run build
 
 - Verify NEXTAUTH_URL and NEXTAUTH_SECRET.
 - Verify Google OAuth callback URL configuration.
+- For an unverified student, use **Resend verification email** on student login; links expire after 24 hours.
 
-### 15.2 Stripe checkout issues
+### 15.2 Google Calendar issues
+
+- Confirm all `GOOGLE_CALENDAR_*` variables are present and the redirect URI exactly matches Google Cloud.
+- A destination calendar must have Google access role `owner`; writer-only shared calendars are deliberately excluded.
+- Check the Calendar settings `lastError`, Vercel function logs, `calendarOutbox`, and `CalendarConnection.status` (`needs_reauth` means Google revoked/expired the grant).
+- Manual **Sync now** force-requeues future managed appointments; the daily cron also renews watch channels.
+
+### 15.3 Stripe checkout issues
 
 - Verify STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET.
 - Verify lookup_key naming and existence in Stripe dashboard.
 
-### 15.3 Metadata/canonical issues
+### 15.4 Metadata/canonical issues
 
 - Verify NEXT_PUBLIC_SITE_URL.
 
-### 15.4 Email issues
+### 15.5 Email issues
 
-- Verify BREVO_API_KEY and sender configuration.
+- Verify `BREVO_API_KEY`, the verified sender, and `BREVO_WEBHOOK_SECRET`.
+- Inspect `notificationOutbox` for retry/dead status and `emailDeliveries` for provider delivery events.
+- Reminder scheduling is limited to 72 hours ahead by Brevo; the daily reconciliation job schedules appointments as they enter that window.
 
-### 15.5 Build warning on middleware naming
+### 15.6 Booking/capacity issues
 
-- Next.js warns that middleware naming is migrating to proxy convention. Treat as a planned maintenance task during framework upgrades.
+- Run the calendar migration in dry-run mode first. Applying it recalculates every `bookingCapacity.activeCount` from active (`pending`/`approved`) appointments.
+- Never edit capacity counters manually without reconciling the corresponding appointment statuses.
 
 ---
 

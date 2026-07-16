@@ -4,7 +4,7 @@ import { getToken } from "next-auth/jwt";
 import { getCountryFromIP } from "./Lib/location";
 
 // Extract and export your token and payment verification logic
-export async function verifyTokenAndAuthorization(req) {
+export async function verifyTokenAndAuthorization(req, allowedRoles = []) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
   if (!token) {
     return false;
@@ -16,7 +16,23 @@ export async function verifyTokenAndAuthorization(req) {
   // performed in API routes.
   // If needed, you can call an API endpoint to validate the user.
 
-  return true;
+  return allowedRoles.length === 0 || allowedRoles.includes(token.role);
+}
+
+function getProtectedArea(pathname) {
+  if (
+    pathname === "/student-dashboard" ||
+    pathname.startsWith("/student-dashboard/")
+  ) {
+    return { roles: ["student"], loginPath: "/student-auth/login" };
+  }
+  if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) {
+    return { roles: ["coach"], loginPath: "/auth/login" };
+  }
+  if (pathname.startsWith("/bmpadmin/")) {
+    return { roles: ["admin"], loginPath: "/bmpadmin" };
+  }
+  return null;
 }
 
 export default async function proxy(req) {
@@ -30,20 +46,23 @@ export default async function proxy(req) {
   // Always create a response object to modify headers and cookies.
   // Decide the response based on the path.
   let response;
-  if (req.nextUrl.pathname.startsWith("/dashboard")) {
+  const protectedArea = getProtectedArea(req.nextUrl.pathname);
+  if (protectedArea) {
     // Guard against stale prefetch/cache requests to non-existent dynamic paths like /dashboard/undefined
-    const dashboardSegment = req.nextUrl.pathname.split("/")[2];
+    const dashboardSegment = req.nextUrl.pathname.startsWith("/dashboard")
+      ? req.nextUrl.pathname.split("/")[2]
+      : null;
     const invalidSegments = ["undefined", "null", "NaN"];
     if (dashboardSegment && invalidSegments.includes(dashboardSegment)) {
       response = NextResponse.redirect(new URL("/dashboard", req.url));
-      return response;
-    }
-
-    const isAuthorized = await verifyTokenAndAuthorization(req);
-    if (!isAuthorized) {
-      response = NextResponse.redirect(new URL("/auth/login", req.url));
     } else {
-      response = NextResponse.next();
+      const isAuthorized = await verifyTokenAndAuthorization(
+        req,
+        protectedArea.roles,
+      );
+      response = isAuthorized
+        ? NextResponse.next()
+        : NextResponse.redirect(new URL(protectedArea.loginPath, req.url));
     }
   } else {
     response = NextResponse.next();
@@ -62,7 +81,7 @@ export default async function proxy(req) {
   return response;
 }
 
-// Apply proxy to all routes to detect country, but only protect dashboard
+// Apply proxy to all page routes for country detection and role-based dashboard protection.
 export const config = {
   matcher: [
     // Match all routes except static files and API routes

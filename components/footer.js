@@ -14,7 +14,7 @@ export default function Footer() {
               {/* Logo */}
               <div className="flex justify-center md:justify-normal ">
                 <div className="relative h-10 w-36 sm:h-11 sm:w-40 lg:h-[54px] lg:w-48">
-                  <Link href="/">
+                  <Link href="/" className="relative block h-full w-full">
                     <Image
                       src="/images/home/logo 2.png"
                       alt="logo"
@@ -59,8 +59,16 @@ export default function Footer() {
           {/* Bottom Section */}
           <div className="flex flex-col sm:flex-row justify-between items-center font-light text-white text-xs sm:text-sm md:text-base lg:text-lg">
             {/* Left Side */}
-            <div className="mb-4 sm:mb-0">
-              © 2026 Rinash Global Booking. All rights reserved.
+            <div className="mb-4 text-center sm:mb-0 sm:text-left">
+              <div>© 2026 Rinash Global Booking. All rights reserved.</div>
+              <div className="mt-2 flex justify-center gap-4 text-sm text-white/80 sm:justify-start">
+                <Link href="/privacy" className="hover:text-white hover:underline">
+                  Privacy
+                </Link>
+                <Link href="/terms" className="hover:text-white hover:underline">
+                  Terms
+                </Link>
+              </div>
             </div>
 
             {/* Right Side - Social Media Icons */}

@@ -1,63 +1,40 @@
-// app/api/chart/route.js
+import { ObjectId } from "mongodb";
 import connectToDatabase from "../../../Lib/mongodb";
+import {
+  errorResponse,
+  requireSession,
+} from "../../../Lib/auth/requireSession";
 
-export async function GET(req) {
-  const { db } = await connectToDatabase();
-  const url = new URL(req.url);
-  const coachId = url.searchParams.get("coachId");
-
-  if (!coachId) {
-    return new Response(JSON.stringify({ message: "Coach ID is required." }), {
-      status: 400,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-  }
-
+export async function GET() {
   try {
-    // Set the start and end of the current month
+    const session = await requireSession(["coach"]);
+    const { db } = await connectToDatabase();
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-
-    // Query the database for appointments within the current month
-    const appointments = await db.collection('appointments').find({
-      coachId,
-      selectedDate: { // Assuming the field in your DB is called 'selectedDate'
-        $gte: startOfMonth,
-        $lte: endOfMonth
-      }
-    }).toArray();
-
-    // Initialize an array for all days in the current month
-    const daysInMonth = endOfMonth.getDate();
-    const counts = new Array(daysInMonth).fill(0);
-
-    // Count appointments for each day
-    appointments.forEach(appointment => {
-      const appointmentDate = new Date(appointment.selectedDate);
-      const dayIndex = appointmentDate.getDate() - 1; // Get the day index (0-30)
-      counts[dayIndex]++;
-    });
-
-    return new Response(JSON.stringify({ counts }), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const coachIds = ObjectId.isValid(session.user.id)
+      ? [session.user.id, new ObjectId(session.user.id)]
+      : [session.user.id];
+    const grouped = await db
+      .collection("appointments")
+      .aggregate([
+        {
+          $match: {
+            coachId: { $in: coachIds },
+            selectedDate: { $gte: start, $lt: end },
+          },
+        },
+        {
+          $group: { _id: { $dayOfMonth: "$selectedDate" }, count: { $sum: 1 } },
+        },
+      ])
+      .toArray();
+    const counts = new Array(
+      new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate(),
+    ).fill(0);
+    for (const item of grouped) counts[item._id - 1] = item.count;
+    return Response.json({ counts });
   } catch (error) {
-    console.error("Error fetching appointment counts:", error);
-    return new Response(JSON.stringify({ 
-      message: "Error fetching appointment statistics.",
-      error: error.message 
-    }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
+    return errorResponse(error, "Unable to load the booking chart.");
   }
 }

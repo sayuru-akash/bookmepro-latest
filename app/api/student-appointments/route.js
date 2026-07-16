@@ -1,81 +1,67 @@
-import axios from "axios"; // Axios for HTTP requests
 import { ObjectId } from "mongodb";
 import connectToDatabase from "../../../Lib/mongodb";
+import {
+  errorResponse,
+  requireSession,
+} from "../../../Lib/auth/requireSession";
+import { normalizeAppointmentStatus } from "../../../Lib/booking/time";
 
-// GET request: Fetch appointments for a specific student ID
-export async function GET(req) {
-  const { db } = await connectToDatabase();
-  const url = new URL(req.url);
-  const studentId = url.searchParams.get("studentId");
-
-  if (!studentId) {
-    return new Response(
-      JSON.stringify({ message: "Student ID is required." }),
-      {
-        status: 400,
-      }
-    );
-  }
-
+export async function GET() {
   try {
-    // First get all appointments
+    const session = await requireSession(["student"]);
+    const { db } = await connectToDatabase();
+    const studentIds = ObjectId.isValid(session.user.id)
+      ? [session.user.id, new ObjectId(session.user.id)]
+      : [session.user.id];
     const appointments = await db
       .collection("appointments")
-      .find({ studentId })
+      .aggregate([
+        { $match: { studentId: { $in: studentIds } } },
+        {
+          $lookup: {
+            from: "users",
+            let: { coachId: "$coachId" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $eq: [{ $toString: "$_id" }, { $toString: "$$coachId" }],
+                  },
+                },
+              },
+              {
+                $project: {
+                  password: 0,
+                  resetPasswordToken: 0,
+                  resetPasswordExpires: 0,
+                  stripeCustomerId: 0,
+                },
+              },
+            ],
+            as: "coach",
+          },
+        },
+        { $set: { coach: { $first: "$coach" } } },
+        { $sort: { startAt: -1, selectedDate: -1 } },
+        { $limit: 1000 },
+      ])
       .toArray();
 
-    // Get coach data for each appointment
-    const appointmentsWithCoaches = await Promise.all(
-      appointments.map(async (appointment) => {
-        let coach;
-        try {
-          // Validate coachId before creating ObjectId
-          if (appointment.coachId && ObjectId.isValid(appointment.coachId)) {
-            coach = await db
-              .collection("users")
-              .findOne({ _id: new ObjectId(appointment.coachId) });
-
-            if (coach) {
-              // Prepare coach data with profile URL
-              const coachData = {
-                ...coach,
-                profileUrl: coach.username 
-                  ? `/coach/${coach.username}` 
-                  : `/coach/${coach._id}`,
-              };
-
-              // Remove sensitive fields
-              delete coachData.password;
-
-              return {
-                ...appointment,
-                coach: coachData,
-              };
+    return Response.json(
+      appointments.map((appointment) => ({
+        ...appointment,
+        status: normalizeAppointmentStatus(appointment.status),
+        coach: appointment.coach
+          ? {
+              ...appointment.coach,
+              profileUrl: appointment.coach.username
+                ? `/coach/${appointment.coach.username}`
+                : `/coach/${appointment.coach._id}`,
             }
-          }
-        } catch (error) {
-          console.error(`Error fetching coach data for appointment ${appointment._id}:`, error);
-        }
-
-        // Return appointment with null coach if no coach found or coachId is invalid
-        return {
-          ...appointment,
-          coach: null,
-        };
-      })
+          : null,
+      })),
     );
-
-    return new Response(JSON.stringify(appointmentsWithCoaches), {
-      status: 200,
-    });
   } catch (error) {
-    console.error("Error fetching appointments:", error);
-    return new Response(
-      JSON.stringify({ 
-        message: "Error fetching appointments.",
-        error: error.message
-      }),
-      { status: 500 }
-    );
+    return errorResponse(error, "Unable to load student appointments.");
   }
 }

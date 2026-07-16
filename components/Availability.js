@@ -35,6 +35,7 @@ import {
   Chip,
   IconButton,
   CircularProgress,
+  TextField,
 } from "@mui/material";
 import {
   Delete,
@@ -79,6 +80,7 @@ const AdminCalendar = ({ timezone: propTimezone }) => {
   const [endTime, setEndTime] = useState(dayjs());
   const [timeSlots, setTimeSlots] = useState([]);
   const [multipleBookings, setMultipleBookings] = useState(false);
+  const [capacity, setCapacity] = useState(25);
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [stripeCustomerId, setStripeCustomerId] = useState(null);
@@ -259,6 +261,7 @@ const AdminCalendar = ({ timezone: propTimezone }) => {
     const newSlot = {
       time: slotTime,
       multipleBookings,
+      capacity: multipleBookings ? capacity : 1,
       timezone: propTimezone || coachData?.timezone || "Australia/Sydney",
       ...(isLocationEnabled &&
         selectedLocation && { location: selectedLocation }),
@@ -267,6 +270,7 @@ const AdminCalendar = ({ timezone: propTimezone }) => {
     setTimeSlots([...timeSlots, newSlot]);
     setStartTime(dayjs().startOf("hour"));
     setEndTime(dayjs().startOf("hour").add(1, "hour"));
+    setCapacity(25);
   };
 
   const handleDeletePaymentMethod = async (paymentMethodId) => {
@@ -653,6 +657,26 @@ const AdminCalendar = ({ timezone: propTimezone }) => {
                 sx={{ mt: 1.5, display: "block" }}
               />
 
+              {multipleBookings && (
+                <TextField
+                  type="number"
+                  label="Session capacity"
+                  value={capacity}
+                  onChange={(event) =>
+                    setCapacity(
+                      Math.min(
+                        500,
+                        Math.max(2, Number(event.target.value) || 2),
+                      ),
+                    )
+                  }
+                  inputProps={{ min: 2, max: 500 }}
+                  helperText="Maximum students who can book this session"
+                  size="small"
+                  sx={{ mt: 0.5, mb: 1, width: { xs: "100%", sm: 280 } }}
+                />
+              )}
+
               <FormControlLabel
                 control={
                   <Switch
@@ -769,7 +793,7 @@ const AdminCalendar = ({ timezone: propTimezone }) => {
                         label={`${slot.time} · ${
                           slot.timezone?.split("/")[1]?.replace(/_/g, " ") ||
                           "Sydney"
-                        } (${slot.multipleBookings ? "Multi" : "Single"})${
+                        } (${slot.multipleBookings ? `Multi · ${slot.capacity || 25} seats` : "Single"})${
                           slot.location
                             ? ` — ${slot.location}`
                             : slot.locations &&
@@ -876,7 +900,9 @@ const AdminCalendar = ({ timezone: propTimezone }) => {
                                   ?.split("/")[1]
                                   ?.replace(/_/g, " ") || "Sydney"
                               } (${
-                                slot.multipleBookings ? "Multi" : "Single"
+                                slot.multipleBookings
+                                  ? `Multi · ${slot.capacity || 25} seats`
+                                  : "Single"
                               })${
                                 slot.locations?.length
                                   ? ` — ${slot.locations.join(", ")}`

@@ -20,7 +20,7 @@ import Button from "@mui/material/Button";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
-import Pagination from '@mui/material/Pagination';
+import Pagination from "@mui/material/Pagination";
 
 const xThemeComponents = {
   ...chartsCustomizations,
@@ -43,17 +43,10 @@ export default function StudentDashboard(props) {
     try {
       setLoading(true);
       setError(null);
-      const studentData =
-        typeof localStorage !== "undefined"
-          ? JSON.parse(localStorage.getItem("studentData"))
-          : null;
-      const studentId = studentData?.id || session?.user?.id;
-      if (!studentId) {
+      if (!session?.user?.id) {
         throw new Error("Student ID not found");
       }
-      const response = await fetch(
-        `/api/student-appointments?studentId=${studentId}`
-      );
+      const response = await fetch("/api/student-appointments");
       if (!response.ok) {
         throw new Error(`Failed to fetch: ${response.status}`);
       }
@@ -89,7 +82,10 @@ export default function StudentDashboard(props) {
   // Calculate pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentAppointments = appointments.slice(indexOfFirstItem, indexOfLastItem);
+  const currentAppointments = appointments.slice(
+    indexOfFirstItem,
+    indexOfLastItem,
+  );
   const totalPages = Math.ceil(appointments.length / itemsPerPage);
 
   const handlePageChange = (event, value) => {
@@ -342,7 +338,10 @@ export default function StudentDashboard(props) {
                                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
                               />
                             </svg>
-                            <span>{appointment.selectedTime?.value || appointment.selectedTime}</span>
+                            <span>
+                              {appointment.selectedTime?.value ||
+                                appointment.selectedTime}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -351,8 +350,8 @@ export default function StudentDashboard(props) {
                           appointment.status === "Approved"
                             ? "bg-green-100 text-green-800"
                             : appointment.status === "pending"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-800"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-red-100 text-red-800"
                         }`}
                       >
                         {appointment.status}
@@ -374,7 +373,9 @@ export default function StudentDashboard(props) {
 
                 {/* Pagination */}
                 {appointments.length > itemsPerPage && (
-                  <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+                  <Box
+                    sx={{ display: "flex", justifyContent: "center", mt: 4 }}
+                  >
                     <Pagination
                       count={totalPages}
                       page={currentPage}

@@ -1,32 +1,40 @@
-// app/api/students/[id]/route.js
-import { MongoClient } from "mongodb";
 import { ObjectId } from "mongodb";
+import connectToDatabase from "../../../../Lib/mongodb";
+import {
+  errorResponse,
+  requireSession,
+} from "../../../../Lib/auth/requireSession";
 
-export async function GET(request, { params }) {
-  const client = await MongoClient.connect(process.env.MONGODB_URI);
-  const db = client.db(process.env.MONGODB_DB);
-
+export async function GET(_request, { params }) {
   try {
-    const { id: studentId } = await params;
-    const student = await db.collection("students").findOne({
-      _id: new ObjectId(studentId),
-    });
-
-    if (!student) {
-      return new Response(JSON.stringify({ message: "Student not found" }), {
-        status: 404,
-      });
+    const session = await requireSession(["student", "admin"]);
+    const { id } = await params;
+    if (!ObjectId.isValid(id)) {
+      return Response.json({ message: "Invalid student ID." }, { status: 400 });
     }
-
-    // Remove sensitive data like password
-    const { password, ...studentData } = student;
-    return new Response(JSON.stringify(studentData), { status: 200 });
+    if (session.user.role !== "admin" && session.user.id !== id) {
+      return Response.json(
+        { message: "You do not own this profile." },
+        { status: 403 },
+      );
+    }
+    const { db } = await connectToDatabase();
+    const student = await db.collection("students").findOne(
+      { _id: new ObjectId(id) },
+      {
+        projection: {
+          password: 0,
+          emailVerificationTokenHash: 0,
+          emailVerificationExpiresAt: 0,
+          resetPasswordToken: 0,
+          resetPasswordExpires: 0,
+        },
+      },
+    );
+    if (!student)
+      return Response.json({ message: "Student not found." }, { status: 404 });
+    return Response.json(student);
   } catch (error) {
-    console.error("Error fetching student:", error);
-    return new Response(JSON.stringify({ message: "Internal server error" }), {
-      status: 500,
-    });
-  } finally {
-    await client.close();
+    return errorResponse(error, "Unable to load the student profile.");
   }
 }

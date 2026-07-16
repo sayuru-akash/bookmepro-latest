@@ -13,7 +13,7 @@ const MOCK_USER = {
 async function getRoute(t, sendEmailImpl, findOneImpl = async () => MOCK_USER) {
   const routePath = new URL('../app/api/auth/forgot-password/route.js', import.meta.url);
   await t.mock.module('next/server.js', {
-    namedExports: {
+    exports: {
       NextResponse: class extends Response {
         static json(body, init = {}) {
           const headers = new Headers(init.headers || {});
@@ -26,11 +26,11 @@ async function getRoute(t, sendEmailImpl, findOneImpl = async () => MOCK_USER) {
     },
   });
   await t.mock.module(new URL('../utils/sendEmail.js', import.meta.url), {
-    namedExports: { sendEmail: sendEmailImpl },
+    exports: { sendEmail: sendEmailImpl },
   });
-  await t.mock.module(new URL('../Lib/mongodb.js', import.meta.url), { defaultExport: async () => {} });
+  await t.mock.module(new URL('../Lib/mongodb.js', import.meta.url), { exports: { default: async () => {} } });
   await t.mock.module(new URL('../models/user.js', import.meta.url), {
-    defaultExport: { findOne: findOneImpl },
+    exports: { default: { findOne: findOneImpl } },
   });
   const mod = await import(`${routePath}?cacheBust=${Math.random()}`);
   return mod.POST;

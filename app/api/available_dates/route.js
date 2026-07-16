@@ -1,331 +1,247 @@
-// app/api/available_dates/route.js
-
-import connectToDatabase from "../../../Lib/mongodb";
 import mongoose from "mongoose";
+import { ObjectId } from "mongodb";
+import connectToDatabase from "../../../Lib/mongodb";
 import AvailableDate from "../../../models/AvailableDate";
 import User from "../../../models/user";
-import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import timezone from "dayjs/plugin/timezone";
-import { ObjectId } from "mongodb";
+import {
+  requireSession,
+  errorResponse,
+} from "../../../Lib/auth/requireSession";
+import {
+  appointmentInterval,
+  intervalsOverlap,
+} from "../../../Lib/booking/time";
+import { busyIntervalsForOwner } from "../../../Lib/integrations/googleCalendar";
 
-// Configure dayjs plugins
-dayjs.extend(utc);
-dayjs.extend(timezone);
-
-// POST request: Create a new available date or update if it already exists
-export async function POST(req) {
-  const { date, timeSlots, coachId, timezone } = await req.json();
-
-  // Validate required fields
-  if (!date || !timeSlots || !coachId || !timezone) {
-    return new Response(
-      JSON.stringify({
-        message: "Date, timeSlots, and coachId are required.",
-      }),
-      { status: 400 },
-    );
-  }
-
-  try {
-    await connectToDatabase();
-    const dateObj = new Date(date);
-
-    // Make sure each time slot has timezone info
-    const timeSlotsWithTimezone = timeSlots.map((slot) => ({
-      ...slot,
-      timezone: slot.timezone || timezone,
-    }));
-
-    const updatedDate = await AvailableDate.findOneAndUpdate(
-      { coachId: new mongoose.Types.ObjectId(coachId), date: dateObj },
-      {
-        $set: {
-          slots: timeSlots.length,
-          timezone, // Store the overall timezone for the date
-          timeSlots: timeSlotsWithTimezone,
-        },
-      },
-      { upsert: true, new: true },
-    );
-
-    return new Response(JSON.stringify(updatedDate), { status: 200 });
-  } catch (error) {
-    console.error("Error saving/updating available date:", error);
-    return new Response(
-      JSON.stringify({
-        message: "Error saving/updating available date.",
-        error: error.message,
-      }),
-      { status: 500 },
-    );
-  }
+function sanitizeSlots(slots, fallbackZone) {
+  if (!Array.isArray(slots))
+    throw Object.assign(new Error("timeSlots must be an array."), {
+      status: 400,
+    });
+  return slots.map((slot) => ({
+    time: String(slot.time || "").trim(),
+    multipleBookings: Boolean(slot.multipleBookings),
+    capacity: slot.multipleBookings
+      ? Math.max(2, Math.min(500, Number(slot.capacity || 25)))
+      : 1,
+    timezone: slot.timezone || fallbackZone,
+    location: slot.location || null,
+  }));
 }
 
-// GET request: Fetch all available dates for a specific coach
-export async function GET(req) {
-  const { searchParams } = new URL(req.url);
-  const param = searchParams.get("coachId") || searchParams.get("username");
-  // When ?coach=true the caller is the coach's own management view.
-  // Return all slots as stored — never filter out booked ones.
-  // Student-facing booking calendar does NOT pass this flag.
-  const isCoachView = searchParams.get("coach") === "true";
+async function coachContext(value) {
+  await connectToDatabase();
+  if (!value)
+    throw Object.assign(new Error("Coach is required."), { status: 400 });
+  const escaped = String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const coach = ObjectId.isValid(value)
+    ? await User.findOne({ _id: value, role: "coach" }).lean()
+    : await User.findOne({
+        username: { $regex: `^${escaped}$`, $options: "i" },
+        role: "coach",
+      }).lean();
+  if (!coach)
+    throw Object.assign(new Error("Coach not found."), { status: 404 });
+  return coach;
+}
 
+async function requireCoachOwnership(coachId) {
+  const session = await requireSession(["coach"]);
+  if (String(session.user.id) !== String(coachId)) {
+    throw Object.assign(
+      new Error("You can only manage your own availability."),
+      { status: 403 },
+    );
+  }
+  return session;
+}
+
+export async function POST(request) {
   try {
-    await connectToDatabase();
-
-    if (!param) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          message: "coachId or username parameter is required",
-        }),
+    const body = await request.json();
+    await requireCoachOwnership(body.coachId);
+    const coach = await coachContext(body.coachId);
+    const dateKey = String(body.date || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey))
+      return Response.json(
+        { message: "A valid date is required." },
         { status: 400 },
       );
-    }
-
-    // Optimized ID/username resolution
-    let coachId;
-    const isPotentialId =
-      param.length === 24 && mongoose.Types.ObjectId.isValid(param);
-
-    if (isPotentialId) {
-      // Verify ID actually exists
-      const coachExists = await User.exists({ _id: param });
-      coachId = coachExists ? param : null;
-    }
-
-    if (!isPotentialId || !coachId) {
-      // Handle as username if not a valid ID
-      const user = await User.findOne({
-        username: { $regex: new RegExp(`^${param}$`, "i") },
+    const timezone = body.timezone || coach.timezone || "Australia/Sydney";
+    const timeSlots = sanitizeSlots(body.timeSlots, timezone);
+    for (const slot of timeSlots)
+      appointmentInterval({
+        date: dateKey,
+        time: slot.time,
+        timeZone: slot.timezone,
       });
-      if (!user) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            message: "Coach not found",
-          }),
-          { status: 404 },
-        );
-      }
-      coachId = user._id.toString();
-    }
+    const updated = await AvailableDate.findOneAndUpdate(
+      { coachId: coach._id, date: new Date(`${dateKey}T00:00:00.000Z`) },
+      { $set: { slots: timeSlots.length, timezone, timeSlots } },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+    return Response.json(updated);
+  } catch (error) {
+    return errorResponse(error, "Unable to save availability.");
+  }
+}
 
-    // Get the current date at midnight (UTC)
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const coach = await coachContext(
+      searchParams.get("coachId") || searchParams.get("username"),
+    );
+    const isCoachView = searchParams.get("coach") === "true";
+    if (isCoachView) await requireCoachOwnership(coach._id);
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
-
-    // Fetch available dates for the coach that are today or later
-    const availableDates = await AvailableDate.find({
-      coachId: new mongoose.Types.ObjectId(coachId),
+    const dates = await AvailableDate.find({
+      coachId: coach._id,
       date: { $gte: today },
-    });
+    })
+      .sort({ date: 1 })
+      .lean();
+    if (isCoachView || !dates.length) return Response.json(dates);
 
-    // Coach management view: return all slots exactly as stored.
-    // No booking filter applied — the coach must always see their full schedule.
-    if (isCoachView) {
-      const allDates = availableDates.map((d) => d.toObject());
-      return new Response(JSON.stringify(allDates), { status: 200 });
-    }
+    const lastDate = new Date(dates.at(-1).date);
+    lastDate.setUTCDate(lastDate.getUTCDate() + 2);
+    const [appointments, busyIntervals] = await Promise.all([
+      mongoose.connection
+        .collection("appointments")
+        .find({
+          coachId: { $in: [coach._id, String(coach._id)] },
+          selectedDate: { $gte: today },
+          status: { $in: ["pending", "approved", "Approved"] },
+        })
+        .toArray(),
+      busyIntervalsForOwner("coach", coach._id, {
+        timeMin: today,
+        timeMax: lastDate,
+      }),
+    ]);
 
-    // Student booking calendar: filter out slots that are already booked.
-    // Use native driver to handle both ObjectId and legacy string coachId values
-    const coachObjectId = new mongoose.Types.ObjectId(coachId);
-    const appointmentsCollection =
-      mongoose.connection.collection("appointments");
-    const appointments = await appointmentsCollection
-      .find({
-        coachId: { $in: [coachObjectId, coachId] },
-        selectedDate: { $gte: today },
-        status: { $in: ["pending", "Approved"] },
-      })
-      .toArray();
-
-    // Process each available date: filter out booked time slots for individual sessions
-    const processedDates = availableDates.map((availableDate) => {
-      const dateStr = new Date(availableDate.date).toISOString().split("T")[0];
-      const filteredTimeSlots = availableDate.timeSlots.filter((slot) => {
-        // Always keep multiple booking slots
-        if (slot.multipleBookings) {
-          return true;
-        }
-
-        // Check if an individual booking exists for this slot.
-        // Both time AND location must match so that a booking at
-        // "Cricket Net 1" does not hide a sibling slot at "Cricket Net 2".
-        const isBooked = appointments.some((appointment) => {
-          const appointmentDateStr = new Date(appointment.selectedDate)
-            .toISOString()
-            .split("T")[0];
-          // selectedTime is stored as an object {value, timezone, slotData} or plain string
-          const appointmentTime =
-            appointment.selectedTime?.value ?? appointment.selectedTime;
-          const appointmentLocation = appointment.location ?? null;
-          const slotLocation = slot.location ?? null;
-          return (
-            appointmentDateStr === dateStr &&
-            appointmentTime === slot.time &&
-            appointment.isIndividualSession === true &&
-            appointmentLocation === slotLocation
-          );
+    const result = dates
+      .map((date) => {
+        const dateKey = new Date(date.date).toISOString().slice(0, 10);
+        const timeSlots = (date.timeSlots || []).flatMap((slot) => {
+          const interval = appointmentInterval({
+            date: dateKey,
+            time: slot.time,
+            timeZone: slot.timezone || date.timezone || coach.timezone,
+          });
+          if (
+            busyIntervals.some((busy) =>
+              intervalsOverlap(
+                interval.startAt,
+                interval.endAt,
+                busy.start,
+                busy.end,
+              ),
+            )
+          )
+            return [];
+          const sameSlot = appointments.filter((appointment) => {
+            const matches = appointment.startAt
+              ? new Date(appointment.startAt).getTime() ===
+                new Date(interval.startAt).getTime()
+              : new Date(appointment.selectedDate)
+                  .toISOString()
+                  .slice(0, 10) === dateKey &&
+                (appointment.selectedTime?.value ??
+                  appointment.selectedTime) === slot.time;
+            return (
+              matches &&
+              (appointment.location || null) === (slot.location || null)
+            );
+          });
+          const capacity = slot.multipleBookings
+            ? Math.max(2, Number(slot.capacity || 25))
+            : 1;
+          const remaining = Math.max(0, capacity - sameSlot.length);
+          return remaining
+            ? [{ ...slot, capacity, capacityRemaining: remaining }]
+            : [];
         });
-        return !isBooked;
+        return { ...date, timeSlots };
+      })
+      .filter((date) => date.timeSlots.length);
+    return Response.json(result);
+  } catch (error) {
+    console.error("Availability load failed:", error);
+    return errorResponse(error, "Unable to load live availability.");
+  }
+}
+
+export async function PUT(request) {
+  try {
+    const url = new URL(request.url);
+    const id = url.searchParams.get("id");
+    if (!ObjectId.isValid(id))
+      return Response.json(
+        { message: "A valid availability record is required." },
+        { status: 400 },
+      );
+    await connectToDatabase();
+    const existing = await AvailableDate.findById(id).lean();
+    if (!existing)
+      return Response.json(
+        { message: "Availability not found." },
+        { status: 404 },
+      );
+    await requireCoachOwnership(existing.coachId);
+    const body = await request.json();
+    const incoming = sanitizeSlots(
+      body.timeSlots,
+      existing.timezone || "Australia/Sydney",
+    );
+    const combined =
+      url.searchParams.get("replace") === "true"
+        ? incoming
+        : [...existing.timeSlots, ...incoming];
+    const finalSlots = Array.from(
+      new Map(
+        combined.map((slot) => [`${slot.time}|${slot.location || ""}`, slot]),
+      ).values(),
+    );
+    for (const slot of finalSlots)
+      appointmentInterval({
+        date: existing.date,
+        time: slot.time,
+        timeZone: slot.timezone || existing.timezone,
       });
-
-      return {
-        ...availableDate.toObject(),
-        timeSlots: filteredTimeSlots,
-      };
+    await AvailableDate.updateOne(
+      { _id: id },
+      { $set: { timeSlots: finalSlots, slots: finalSlots.length } },
+    );
+    return Response.json({
+      message: "Availability updated.",
+      timeSlots: finalSlots,
     });
-
-    // Remove dates with no available time slots
-    const finalDates = processedDates.filter(
-      (date) => date.timeSlots.length > 0,
-    );
-
-    return new Response(JSON.stringify(finalDates), { status: 200 });
   } catch (error) {
-    console.error("Error fetching available dates:", error);
-    return new Response(
-      JSON.stringify({
-        message: "Error fetching available dates.",
-        error: error.message,
-      }),
-      { status: 500 },
-    );
+    return errorResponse(error, "Unable to update availability.");
   }
 }
 
-// DELETE request: Remove an available date by ID
-export async function DELETE(req) {
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get("id");
-
-  if (!id) {
-    return new Response(JSON.stringify({ message: "ID is required." }), {
-      status: 400,
-    });
-  }
-
+export async function DELETE(request) {
   try {
+    const id = new URL(request.url).searchParams.get("id");
+    if (!ObjectId.isValid(id))
+      return Response.json(
+        { message: "A valid availability record is required." },
+        { status: 400 },
+      );
     await connectToDatabase();
-    const result = await AvailableDate.deleteOne({ _id: id });
-
-    if (result.deletedCount === 0) {
-      return new Response(
-        JSON.stringify({ message: "No available date found." }),
+    const existing = await AvailableDate.findById(id).lean();
+    if (!existing)
+      return Response.json(
+        { message: "Availability not found." },
         { status: 404 },
       );
-    }
-
-    return new Response(
-      JSON.stringify({ message: "Available date deleted successfully." }),
-      { status: 200 },
-    );
+    await requireCoachOwnership(existing.coachId);
+    await AvailableDate.deleteOne({ _id: id });
+    return Response.json({ message: "Availability removed." });
   } catch (error) {
-    console.error("Error deleting available date:", error);
-    return new Response(
-      JSON.stringify({
-        message: "Error deleting available date.",
-        error: error.message,
-      }),
-      { status: 500 },
-    );
-  }
-}
-
-// PUT request: Update time slots for a specific available date
-export async function PUT(req) {
-  const { searchParams } = new URL(req.url);
-  const id = searchParams.get("id");
-
-  if (!id) {
-    return new Response(JSON.stringify({ message: "ID is required." }), {
-      status: 400,
-    });
-  }
-
-  // Validate if the ID is a valid ObjectId string
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return new Response(JSON.stringify({ message: "Invalid ID format." }), {
-      status: 400,
-    });
-  }
-  const objectId = new mongoose.Types.ObjectId(id); // Convert string ID to ObjectId
-
-  const { timeSlots } = await req.json();
-
-  // When ?replace=true is passed the incoming timeSlots list fully replaces
-  // the stored list (used by the coach delete-slot action).
-  // Without the flag the request is an add/merge operation (default).
-  const replaceMode = searchParams.get("replace") === "true";
-
-  if (!Array.isArray(timeSlots)) {
-    return new Response(
-      JSON.stringify({ message: "timeSlots must be an array." }),
-      { status: 400 },
-    );
-  }
-
-  try {
-    await connectToDatabase();
-
-    const existingDate = await AvailableDate.findById(objectId);
-    if (!existingDate) {
-      return new Response(
-        JSON.stringify({
-          message: "No available date found with the provided ID.",
-        }),
-        { status: 404 },
-      );
-    }
-
-    let finalSlots;
-    if (replaceMode) {
-      // Pure replace — coach is deleting/reordering existing slots.
-      finalSlots = timeSlots;
-    } else {
-      // Merge new and old time slots.
-      // Dedup key is the composite "time|location" so that:
-      //   • same time + same location → kept once (duplicate removed)
-      //   • same time + different location → both kept (valid distinct venues)
-      const mergedSlots = [...existingDate.timeSlots, ...timeSlots];
-      finalSlots = Array.from(
-        new Map(
-          mergedSlots.map((slot) => [
-            `${slot.time}|${slot.location || ""}`,
-            slot,
-          ]),
-        ).values(),
-      );
-    }
-
-    const result = await AvailableDate.updateOne(
-      { _id: objectId },
-      {
-        $set: {
-          timeSlots: finalSlots,
-          slots: finalSlots.length,
-        },
-      },
-    );
-
-    return new Response(
-      JSON.stringify({
-        message: "Time slots updated successfully.",
-        updatedSlots: finalSlots.length,
-      }),
-      { status: 200 },
-    );
-  } catch (error) {
-    console.error("Error updating time slots:", error);
-    return new Response(
-      JSON.stringify({
-        message: "Error updating time slots.",
-        error: error.message,
-      }),
-      { status: 500 },
-    );
+    return errorResponse(error, "Unable to remove availability.");
   }
 }

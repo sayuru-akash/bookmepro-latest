@@ -1,101 +1,110 @@
-// app/api/auth/student/signup/route.js
-import connectToDatabase from "../../../../../Lib/mongodb";
+import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
+import validator from "validator";
 import { ObjectId } from "mongodb";
-import User from "../../../../../models/user";
+import connectToDatabase from "../../../../../Lib/mongodb";
+import { sendStudentVerificationEmail } from "../../../../../Lib/notifications/accountEmail";
 
-export async function POST(req) {
+function strongPassword(value) {
+  return (
+    typeof value === "string" &&
+    value.length >= 8 &&
+    [/[a-z]/, /[A-Z]/, /\d/, /[@$!%*?&#]/].filter((rule) => rule.test(value))
+      .length >= 3
+  );
+}
+
+export async function POST(request) {
   try {
-    // Parse the request body
-    const { name, email, password, phone, address, coachId } = await req.json();
-
-    // Validate required fields
-    if (!name || !email || !phone || !coachId) {
-      return new Response(
-        JSON.stringify({
-          message: "Name, email, phone, and coachId are required.",
-        }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+    const body = await request.json();
+    const name = String(body.name || "").trim();
+    const email = String(body.email || "")
+      .trim()
+      .toLowerCase();
+    const phone = String(body.phone || "").trim();
+    if (
+      !name ||
+      !validator.isEmail(email) ||
+      !phone ||
+      !body.coachId ||
+      !strongPassword(body.password)
+    ) {
+      return Response.json(
+        {
+          message:
+            "Provide a valid name, email, phone, coach, and strong password.",
+        },
+        { status: 400 },
+      );
+    }
+    const connection = await connectToDatabase();
+    const db = connection.db;
+    const coach = ObjectId.isValid(body.coachId)
+      ? await db
+          .collection("users")
+          .findOne({ _id: new ObjectId(body.coachId), role: "coach" })
+      : await db
+          .collection("users")
+          .findOne({ username: body.coachId, role: "coach" });
+    if (!coach)
+      return Response.json({ message: "Coach not found." }, { status: 404 });
+    if (await db.collection("students").findOne({ email })) {
+      return Response.json(
+        { message: "A student account already exists for this email." },
+        { status: 409 },
       );
     }
 
-    const { db } = await connectToDatabase();
-
-    // Check if the student already exists
-    const existingUser = await db.collection("students").findOne({ email });
-    if (existingUser) {
-      return new Response(
-        JSON.stringify({ message: "Student already exists." }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    // Validate and resolve coach ID
-    let resolvedCoachId = coachId;
-    
-    // If coachId is not a valid MongoDB ID (24 chars), treat as username
-    if (!ObjectId.isValid(coachId)) {
-      const coach = await db.collection("users").findOne({ 
-        username: coachId,
-        role: 'coach' // Ensure we're getting a coach
-      });
-      
-      if (!coach) {
-        return new Response(
-          JSON.stringify({ message: "Coach not found with the provided username." }),
-          { status: 404, headers: { "Content-Type": "application/json" } }
-        );
-      }
-      resolvedCoachId = coach._id.toString();
-    } else {
-      // Even if it's a valid ObjectId, verify the coach exists
-      const coach = await db.collection("users").findOne({ 
-        _id: new ObjectId(coachId),
-        role: 'coach'
-      });
-      
-      if (!coach) {
-        return new Response(
-          JSON.stringify({ message: "Coach not found with the provided ID." }),
-          { status: 404, headers: { "Content-Type": "application/json" } }
-        );
-      }
-    }
-
-    // Hash the password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Insert the new student and return the inserted document
+    const verificationToken = crypto.randomBytes(32).toString("base64url");
+    const verificationHash = crypto
+      .createHash("sha256")
+      .update(verificationToken)
+      .digest("hex");
+    const now = new Date();
     const result = await db.collection("students").insertOne({
       name,
+      fullName: name,
       email,
-      password: hashedPassword,
+      password: await bcrypt.hash(body.password, 12),
       phone,
-      address,
-      createdAt: new Date(),
-      coachId: resolvedCoachId,
+      address: String(body.address || "").trim(),
+      coachId: String(coach._id),
+      role: "student",
+      emailVerifiedAt: null,
+      emailVerificationTokenHash: verificationHash,
+      emailVerificationExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      emailVerificationSentAt: now,
+      createdAt: now,
+      updatedAt: now,
     });
-
-    // Return the complete student data including ID
-    const newStudent = {
-      _id: result.insertedId,
-      name,
-      email,
-      phone,
-      address,
-      coachId: resolvedCoachId,
-    };
-
-    return new Response(
-      JSON.stringify({ message: "Student created successfully." }),
-      { status: 201, headers: { "Content-Type": "application/json" } }
+    try {
+      await sendStudentVerificationEmail({
+        email,
+        name,
+        token: verificationToken,
+      });
+    } catch (error) {
+      await db.collection("students").deleteOne({ _id: result.insertedId });
+      throw new Error(`Verification email could not be sent: ${error.message}`);
+    }
+    return Response.json(
+      {
+        message:
+          "Student created successfully. Check your email to verify the account.",
+      },
+      { status: 201 },
     );
   } catch (error) {
-    console.error("Signup error:", error);
-    return new Response(JSON.stringify({ message: "Internal server error." }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    console.error("Student signup failed:", error);
+    if (error?.code === 11000) {
+      return Response.json(
+        { message: "A student account already exists for this email." },
+        { status: 409 },
+      );
+    }
+    return Response.json(
+      { message: "Unable to create the student account." },
+      { status: 500 },
+    );
   }
 }
