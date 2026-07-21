@@ -180,16 +180,17 @@ export default function Calendar() {
     // If canSignUp is false, the snackbar will show automatically
   };
 
-  const handleSignUpSuccess = (response) => {
+  const handleSignUpSuccess = () => {
     setToast({
       show: true,
-      message: "Registration successful! Redirecting to login...",
+      message:
+        "Account created. Check your email for the verification link before signing in.",
       type: "success",
     });
+    setAuthStep("login");
     setTimeout(() => {
       setToast({ show: false, message: "", type: "" });
-      setAuthStep("login");
-    }, 2000);
+    }, 8000);
   };
 
   const handleSnackbarClose = (event, reason) => {
