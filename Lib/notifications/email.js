@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { DateTime } from "luxon";
+import validator from "validator";
 
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
@@ -17,10 +18,20 @@ export function escapeHtml(value) {
   );
 }
 
-function sender() {
+export function brevoSender() {
+  const email = String(process.env.BREVO_SENDER_EMAIL || "")
+    .trim()
+    .toLowerCase();
+  if (!validator.isEmail(email)) {
+    throw new Error(
+      "BREVO_SENDER_EMAIL is not configured with a valid email address.",
+    );
+  }
+  const name =
+    String(process.env.BREVO_SENDER_NAME || "BookMePro").trim() || "BookMePro";
   return {
-    email: process.env.BREVO_SENDER_EMAIL || "bookmeprocodezela@gmail.com",
-    name: process.env.BREVO_SENDER_NAME || "BookMePro",
+    email,
+    name,
   };
 }
 
@@ -45,7 +56,7 @@ export async function sendBrevoEmail({
       "api-key": apiKey,
     },
     body: JSON.stringify({
-      sender: sender(),
+      sender: brevoSender(),
       to: Array.isArray(to) ? to : [to],
       subject,
       htmlContent,
