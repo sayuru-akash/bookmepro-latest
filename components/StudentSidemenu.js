@@ -2,14 +2,13 @@
 "use client";
 
 import * as React from "react";
-import { styled, useTheme } from "@mui/material/styles";
+import { styled } from "@mui/material/styles";
 import MuiDrawer from "@mui/material/Drawer";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
 import StudentMenuContent from "./StudentMenuContent";
 import Button from "@mui/material/Button";
 import { LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 
 const drawerWidth = "full";
@@ -31,20 +30,23 @@ const Drawer = styled(MuiDrawer)(({ theme }) => ({
 }));
 
 export default function StudentSidemenu({ session }) {
-  const theme = useTheme();
-  const router = useRouter();
+  const [isSigningOut, setIsSigningOut] = React.useState(false);
 
   const handleLogout = async () => {
+    if (isSigningOut) return;
+
+    setIsSigningOut(true);
     try {
-      await signOut({
-        redirect: false,
-      });
       localStorage.removeItem("studentData");
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      router.push("/");
+      await signOut({
+        redirect: true,
+        callbackUrl: "/student-auth/login",
+      });
     } catch (error) {
       console.error("Error during logout:", error);
+      setIsSigningOut(false);
       alert("An error occurred while logging out. Please try again.");
     }
   };
@@ -70,36 +72,42 @@ export default function StudentSidemenu({ session }) {
 
       <StudentMenuContent session={session} />
 
-      <div className="flex justify-center mt-auto pb-4">
+      <div className="mt-auto px-2 pb-4">
         <Box
           sx={{
             display: "flex",
-            alignItems: "center",
+            width: "100%",
             fontWeight: 700,
             fontFamily: "Kanit, sans-serif",
+            borderTop: "1px solid #e0e0e0",
+            pt: 1,
           }}
         >
           <Button
-            startIcon={
-              <LogOut
-                sx={{ fill: theme.palette.text.primary, padding: "5px" }}
-              />
-            }
+            startIcon={<LogOut size={20} strokeWidth={2} />}
             aria-label="Log out"
+            disabled={isSigningOut}
             sx={{
               fontFamily: "Kanit, sans-serif",
               color: "#037D40",
               textTransform: "none",
-              display: "flex",
-              alignItems: "center",
-              opacity: 0.8,
+              width: "100%",
+              justifyContent: "flex-start",
+              px: 2.5,
+              py: 1.25,
+              borderRadius: 0,
+              fontSize: "14px",
+              fontWeight: 700,
               "&:hover": {
-                bgcolor: "#E6F2EC",
+                bgcolor: "#D1E8D5",
+              },
+              "&.Mui-disabled": {
+                color: "#5f8f75",
               },
             }}
             onClick={handleLogout}
           >
-            Log Out
+            {isSigningOut ? "Signing out…" : "Log Out"}
           </Button>
         </Box>
       </div>

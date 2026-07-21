@@ -39,8 +39,7 @@ export default function AdminSidemenu() {
 
   const handleLogout = async () => {
     try {
-      await signOut({ redirect: false });
-      router.push("/");
+      await signOut({ redirect: true, callbackUrl: "/" });
     } catch (error) {
       console.error("Logout error:", error);
     }

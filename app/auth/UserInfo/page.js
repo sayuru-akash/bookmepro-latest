@@ -16,8 +16,8 @@ export default function UserInfo() {
           Email: <span className="font-bold">{session?.user?.email}</span>
         </div>
         <button
-          onClick={() => signOut()}
-          className="bg-red-500 text-white font-bold px-6 py-2 mt-3"
+          onClick={() => signOut({ redirect: true, callbackUrl: "/" })}
+          className="bg-primary hover:bg-[#036b34] text-white font-bold px-6 py-2 mt-3 rounded-lg transition-colors"
         >
           Log Out
         </button>

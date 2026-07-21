@@ -228,7 +228,10 @@ export default function MobileMenu() {
           <MenuContent session={session} />
           <div className="flex justify-center pl-2 items-center">
             <button
-              onClick={() => signOut({ callbackUrl: "/" })}
+              onClick={() =>
+                signOut({ redirect: true, callbackUrl: "/" })
+              }
+              aria-label="Log out"
               className="hover:text-white text-primary bg-secondary px-10 rounded-md py-3 hover:bg-green-700 font-bold mt-1 md:mt-4"
             >
               Log Out

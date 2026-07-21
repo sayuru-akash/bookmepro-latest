@@ -2,19 +2,15 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 
 export default function SubscriptionModal({ isOpen, paymentStatus }) {
-  const router = useRouter();
-
   if (!isOpen) {
     return null;
   }
 
   const handleSignOut = async () => {
-    await signOut({ redirect: false });
-    router.push("/auth/login");
+    await signOut({ redirect: true, callbackUrl: "/auth/login" });
   };
 
   const getModalMessage = () => {

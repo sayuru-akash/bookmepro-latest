@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { styled, useTheme } from "@mui/material/styles";
+import { styled } from "@mui/material/styles";
 import Avatar from "@mui/material/Avatar";
 import MuiDrawer from "@mui/material/Drawer";
 import Box from "@mui/material/Box";
@@ -38,7 +38,6 @@ const Drawer = styled(MuiDrawer)(({ theme }) => ({
 
 export default function SideMenu({ session }) {
   const [coachData, setCoachData] = React.useState(null);
-  const theme = useTheme();
   const router = useRouter();
 
   React.useEffect(() => {
@@ -188,9 +187,7 @@ export default function SideMenu({ session }) {
             >
               <Button
                 startIcon={
-                  <LogOut
-                    sx={{ fill: theme.palette.text.primary, padding: "5px" }}
-                  />
+                  <LogOut size={20} strokeWidth={2} color="#037D40" />
                 }
                 sx={{
                   fontFamily: "Kanit, sans-serif",
@@ -203,7 +200,10 @@ export default function SideMenu({ session }) {
                     bgcolor: "#E6F2EC",
                   },
                 }}
-                onClick={() => signOut({ callbackUrl: "/" })}
+                aria-label="Log out"
+                onClick={() =>
+                  signOut({ redirect: true, callbackUrl: "/" })
+                }
               >
                 Log Out
               </Button>
