@@ -6,6 +6,7 @@ import {
   drainNotificationOutbox,
   reconcileScheduledReminders,
 } from "../../../Lib/notifications/outbox";
+import { ensureBrevoDeliveryWebhook } from "../../../Lib/notifications/email";
 import {
   drainCalendarOutbox,
   enqueueFutureCoachAppointments,
@@ -46,12 +47,25 @@ export async function GET(request) {
         calendarHealth.push({ ownerId: connection.ownerId, status: "error" });
       }
     }
+    let emailHealth;
+    try {
+      emailHealth = await ensureBrevoDeliveryWebhook();
+    } catch (error) {
+      console.error("Brevo delivery webhook reconciliation failed:", error);
+      emailHealth = { status: "error" };
+    }
     const notifications = await drainNotificationOutbox({ limit: 25 });
     const calendar = await drainCalendarOutbox({ limit: 25 });
     const reminders = await reconcileScheduledReminders(25);
     return NextResponse.json({
       success: true,
-      details: { notifications, calendar, reminders, calendarHealth },
+      details: {
+        notifications,
+        calendar,
+        reminders,
+        calendarHealth,
+        emailHealth,
+      },
     });
   } catch (error) {
     console.error("BookMePro reconciliation failed:", error);

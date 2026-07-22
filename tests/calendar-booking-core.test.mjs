@@ -9,6 +9,7 @@ import {
   normalizeTimeZone,
 } from "../Lib/booking/time.js";
 import {
+  brevoWebhookIsCurrent,
   escapeHtml,
   renderAppointmentEmail,
 } from "../Lib/notifications/email.js";
@@ -249,4 +250,41 @@ test("cancellation and reschedule emails identify who made the change", () => {
     actorRole: "student",
   });
   assert.match(studentRescheduled.subject, /student rescheduled/i);
+});
+
+test("Brevo delivery webhook requires the exact endpoint, secret, and events", () => {
+  const events = [
+    "request",
+    "delivered",
+    "hardBounce",
+    "softBounce",
+    "blocked",
+    "spam",
+    "invalid",
+    "deferred",
+    "unsubscribed",
+  ];
+  const expectedUrl = "https://bookmepro.com.au/api/webhooks/brevo";
+  assert.equal(
+    brevoWebhookIsCurrent(
+      {
+        url: expectedUrl,
+        events,
+        headers: [
+          { key: "x-bookmepro-webhook-secret", value: "test-secret" },
+        ],
+      },
+      expectedUrl,
+      "test-secret",
+    ),
+    true,
+  );
+  assert.equal(
+    brevoWebhookIsCurrent(
+      { url: expectedUrl, events, headers: [] },
+      expectedUrl,
+      "test-secret",
+    ),
+    false,
+  );
 });

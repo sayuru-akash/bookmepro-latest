@@ -3,6 +3,17 @@ import { DateTime } from "luxon";
 import validator from "validator";
 
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+const BREVO_WEBHOOK_EVENTS = [
+  "request",
+  "delivered",
+  "hardBounce",
+  "softBounce",
+  "blocked",
+  "spam",
+  "invalid",
+  "deferred",
+  "unsubscribed",
+];
 
 export function escapeHtml(value) {
   return String(value ?? "").replace(
@@ -96,6 +107,107 @@ export async function cancelBrevoScheduledEmail(identifier) {
     },
   );
   return response.ok || response.status === 404;
+}
+
+function brevoWebhookUrl() {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    process.env.NEXTAUTH_URL ||
+    "https://bookmepro.com.au";
+  return `${baseUrl.replace(/\/$/, "")}/api/webhooks/brevo`;
+}
+
+export function brevoWebhookIsCurrent(webhook, expectedUrl, secret) {
+  try {
+    const actual = new URL(webhook?.url);
+    const expected = new URL(expectedUrl);
+    const endpointMatches =
+      actual.origin === expected.origin && actual.pathname === expected.pathname;
+    const headerMatches = (webhook?.headers || []).some(
+      (header) =>
+        String(header.key || "").toLowerCase() ===
+          "x-bookmepro-webhook-secret" && header.value === secret,
+    );
+    const queryMatches = actual.searchParams.get("token") === secret;
+    const events = new Set(webhook?.events || []);
+    return (
+      endpointMatches &&
+      (headerMatches || queryMatches) &&
+      BREVO_WEBHOOK_EVENTS.every((event) => events.has(event))
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function brevoApi(path, options = {}) {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) throw new Error("Brevo email is not configured.");
+  const response = await fetch(`https://api.brevo.com/v3${path}`, {
+    ...options,
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      "api-key": apiKey,
+      ...options.headers,
+    },
+    cache: "no-store",
+  });
+  if (response.status === 204) return {};
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      data.message || data.code || `Brevo request failed (${response.status}).`,
+    );
+  }
+  return data;
+}
+
+export async function ensureBrevoDeliveryWebhook() {
+  const secret = process.env.BREVO_WEBHOOK_SECRET;
+  if (!secret) throw new Error("Brevo webhook authentication is not configured.");
+  const expectedUrl = brevoWebhookUrl();
+  const data = await brevoApi("/webhooks?type=transactional&sort=desc");
+  const webhooks = data.webhooks || [];
+  if (
+    webhooks.some((webhook) =>
+      brevoWebhookIsCurrent(webhook, expectedUrl, secret),
+    )
+  ) {
+    return { status: "ok", action: "unchanged" };
+  }
+
+  const sameEndpoint = webhooks.find((webhook) => {
+    try {
+      const actual = new URL(webhook.url);
+      const expected = new URL(expectedUrl);
+      return (
+        actual.origin === expected.origin &&
+        actual.pathname === expected.pathname
+      );
+    } catch {
+      return false;
+    }
+  });
+  const configuration = {
+    url: expectedUrl,
+    description: "BookMePro transactional delivery tracking",
+    events: BREVO_WEBHOOK_EVENTS,
+    batched: false,
+    headers: [{ key: "x-bookmepro-webhook-secret", value: secret }],
+  };
+  if (sameEndpoint) {
+    await brevoApi(`/webhooks/${sameEndpoint.id}`, {
+      method: "PUT",
+      body: JSON.stringify(configuration),
+    });
+    return { status: "ok", action: "updated" };
+  }
+  await brevoApi("/webhooks", {
+    method: "POST",
+    body: JSON.stringify({ ...configuration, type: "transactional" }),
+  });
+  return { status: "ok", action: "created" };
 }
 
 function appointmentDetails(appointment) {
