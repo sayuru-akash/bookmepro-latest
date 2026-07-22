@@ -4,7 +4,11 @@ import connectToDatabase from "../mongodb";
 import CalendarConnection from "../../models/CalendarConnection";
 import { decryptSecret, encryptSecret } from "../security/secretBox";
 import { ACTIVE_APPOINTMENT_STATUSES } from "../booking/time";
-import { calendarEventDisposition } from "./calendarPolicy";
+import {
+  calendarEventDisposition,
+  missingGoogleCalendarScopes,
+  shouldReconcileGoogleEvent,
+} from "./calendarPolicy";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -128,10 +132,9 @@ export async function accessTokenForConnection(connection) {
 }
 
 async function googleFetch(connection, path, options = {}) {
-  const accessToken = await accessTokenForConnection(connection);
-  const response = await fetch(
-    path.startsWith("http") ? path : `${GOOGLE_API_URL}${path}`,
-    {
+  const url = path.startsWith("http") ? path : `${GOOGLE_API_URL}${path}`;
+  const request = (accessToken) =>
+    fetch(url, {
       ...options,
       headers: {
         authorization: `Bearer ${accessToken}`,
@@ -140,8 +143,14 @@ async function googleFetch(connection, path, options = {}) {
         ...options.headers,
       },
       cache: "no-store",
-    },
-  );
+    });
+  let accessToken = await accessTokenForConnection(connection);
+  let response = await request(accessToken);
+  if (response.status === 401 && connection.refreshTokenEncrypted) {
+    connection.accessTokenExpiresAt = new Date(0);
+    accessToken = await refreshGoogleAccessToken(connection);
+    response = await request(accessToken);
+  }
   if (response.status === 204) return null;
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -183,6 +192,12 @@ export async function saveGoogleCalendarConnection({
   const scopeList = String(tokens.scope || "")
     .split(" ")
     .filter(Boolean);
+  const missingScopes = missingGoogleCalendarScopes(ownerType, scopeList);
+  if (missingScopes.length) {
+    throw new Error(
+      "Required Google Calendar permissions were not granted. Please reconnect and approve every requested Calendar permission.",
+    );
+  }
   const connection = await CalendarConnection.findOneAndUpdate(
     { ownerType, ownerId: new ObjectId(ownerId) },
     {
@@ -499,6 +514,9 @@ export async function ensureGoogleCalendarWatch(connection) {
   if (connection.ownerType !== "coach" || connection.status !== "connected")
     return null;
   const calendarId = connection.destinationCalendarId || "primary";
+  const previousChannels = (connection.watchChannels || []).filter(
+    (item) => item.calendarId === calendarId,
+  );
   const current = (connection.watchChannels || []).find(
     (item) =>
       item.calendarId === calendarId &&
@@ -522,6 +540,19 @@ export async function ensureGoogleCalendarWatch(connection) {
       }),
     },
   );
+  for (const channel of previousChannels) {
+    try {
+      await googleFetch(connection, "/channels/stop", {
+        method: "POST",
+        body: JSON.stringify({
+          id: channel.channelId,
+          resourceId: channel.resourceId,
+        }),
+      });
+    } catch {
+      // An expired channel is already inactive and needs no cleanup.
+    }
+  }
   connection.watchChannels = [
     ...(connection.watchChannels || []).filter(
       (item) => item.calendarId !== calendarId,
@@ -536,6 +567,75 @@ export async function ensureGoogleCalendarWatch(connection) {
   ];
   await connection.save();
   return connection.watchChannels.at(-1);
+}
+
+export async function moveFutureManagedEvents(
+  connection,
+  { fromCalendarId, toCalendarId },
+) {
+  if (!fromCalendarId || !toCalendarId || fromCalendarId === toCalendarId) {
+    return { moved: 0, missing: 0 };
+  }
+  const database = await connectToDatabase();
+  const db = database.db;
+  const ownerId = String(connection.ownerId);
+  const coachIds = ObjectId.isValid(ownerId)
+    ? [new ObjectId(ownerId), ownerId]
+    : [ownerId];
+  const appointments = await db
+    .collection("appointments")
+    .find(
+      {
+        coachId: { $in: coachIds },
+        status: { $in: ACTIVE_APPOINTMENT_STATUSES },
+        externalCalendarEventId: { $type: "string", $ne: "" },
+        $or: [
+          { startAt: { $gte: new Date() } },
+          { startAt: { $exists: false }, selectedDate: { $gte: new Date() } },
+        ],
+      },
+      { projection: { externalCalendarEventId: 1 } },
+    )
+    .toArray();
+  const eventIds = [
+    ...new Set(
+      appointments.map((item) => item.externalCalendarEventId).filter(Boolean),
+    ),
+  ];
+  let moved = 0;
+  let missing = 0;
+  for (const eventId of eventIds) {
+    const params = new URLSearchParams({
+      destination: toCalendarId,
+      sendUpdates: "all",
+    });
+    try {
+      const event = await googleFetch(
+        connection,
+        `/calendars/${encodeURIComponent(fromCalendarId)}/events/${encodeURIComponent(eventId)}/move?${params}`,
+        { method: "POST" },
+      );
+      moved += 1;
+      await db.collection("appointments").updateMany(
+        {
+          coachId: { $in: coachIds },
+          externalCalendarEventId: eventId,
+        },
+        {
+          $set: {
+            externalCalendarHtmlLink: event.htmlLink || null,
+            googleMeetLink: event.hangoutLink || null,
+            calendarSyncedAt: new Date(),
+            calendarSyncError: null,
+          },
+        },
+      );
+    } catch (error) {
+      if (error.status !== 404 && error.status !== 410) throw error;
+      missing += 1;
+    }
+  }
+  return { moved, missing };
 }
 
 export async function stopGoogleCalendarWatches(connection) {
@@ -573,7 +673,7 @@ export async function syncGoogleDestinationCalendar(connection) {
 
   let pageToken = null;
   let nextSyncToken = connection.syncToken;
-  const changedAppointmentIds = new Set();
+  const managedChanges = new Map();
   try {
     do {
       if (pageToken) params.set("pageToken", pageToken);
@@ -583,7 +683,19 @@ export async function syncGoogleDestinationCalendar(connection) {
       );
       for (const event of data.items || []) {
         const id = event.extendedProperties?.private?.bookmeproAppointmentId;
-        if (id && ObjectId.isValid(id)) changedAppointmentIds.add(id);
+        const deterministicId = /^bmp[0-9a-f]{24}$/.test(event.id || "")
+          ? event.id.slice(3)
+          : null;
+        if (
+          (id && ObjectId.isValid(id)) ||
+          (deterministicId && ObjectId.isValid(deterministicId)) ||
+          String(event.id || "").startsWith("bmpg")
+        ) {
+          managedChanges.set(event.id || id, {
+            event,
+            appointmentId: id || deterministicId,
+          });
+        }
       }
       pageToken = data.nextPageToken || null;
       nextSyncToken = data.nextSyncToken || nextSyncToken;
@@ -601,10 +713,55 @@ export async function syncGoogleDestinationCalendar(connection) {
   connection.lastSyncedAt = new Date();
   connection.lastError = null;
   await connection.save();
-  for (const appointmentId of changedAppointmentIds) {
-    await syncAppointmentToGoogle(appointmentId);
+  const directIds = [...managedChanges.values()]
+    .map((item) => item.appointmentId)
+    .filter((id) => ObjectId.isValid(id))
+    .map((id) => new ObjectId(id));
+  const eventIds = [...managedChanges.values()]
+    .map((item) => item.event.id)
+    .filter(Boolean);
+  const database = await connectToDatabase();
+  const appointments = managedChanges.size
+    ? await database.db
+        .collection("appointments")
+        .find(
+          {
+            $or: [
+              ...(directIds.length ? [{ _id: { $in: directIds } }] : []),
+              ...(eventIds.length
+                ? [{ externalCalendarEventId: { $in: eventIds } }]
+                : []),
+            ],
+          },
+          { projection: { calendarSyncedAt: 1, externalCalendarEventId: 1 } },
+        )
+        .toArray()
+    : [];
+  const byId = new Map(appointments.map((item) => [String(item._id), item]));
+  const byEventId = new Map(
+    appointments
+      .filter((item) => item.externalCalendarEventId)
+      .map((item) => [item.externalCalendarEventId, item]),
+  );
+  let reconciled = 0;
+  let ignoredOwnWrites = 0;
+  for (const change of managedChanges.values()) {
+    const appointment =
+      byId.get(String(change.appointmentId || "")) ||
+      byEventId.get(change.event.id);
+    if (!appointment) continue;
+    if (!shouldReconcileGoogleEvent(change.event, appointment)) {
+      ignoredOwnWrites += 1;
+      continue;
+    }
+    await syncAppointmentToGoogle(appointment._id);
+    reconciled += 1;
   }
-  return { changed: changedAppointmentIds.size };
+  return {
+    observed: managedChanges.size,
+    reconciled,
+    ignoredOwnWrites,
+  };
 }
 
 export async function revokeGoogleCalendarConnection(connection) {

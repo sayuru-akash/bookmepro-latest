@@ -9,7 +9,11 @@ import {
   normalizeTimeZone,
 } from "../Lib/booking/time.js";
 import { escapeHtml } from "../Lib/notifications/email.js";
-import { calendarEventDisposition } from "../Lib/integrations/calendarPolicy.js";
+import {
+  calendarEventDisposition,
+  missingGoogleCalendarScopes,
+  shouldReconcileGoogleEvent,
+} from "../Lib/integrations/calendarPolicy.js";
 
 test("appointment intervals preserve Australian daylight-saving offsets", () => {
   const summer = appointmentInterval({
@@ -142,5 +146,45 @@ test("calendar OAuth state is authenticated, encrypted, and expires", async () =
   assert.throws(
     () => verifyState(signState({ ownerId: "abc" }, -1)),
     /expired/,
+  );
+});
+
+test("calendar connections require every role-specific approved scope", () => {
+  const common = [
+    "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+    "https://www.googleapis.com/auth/calendar.events.freebusy",
+  ];
+  assert.deepEqual(missingGoogleCalendarScopes("student", common), []);
+  assert.deepEqual(missingGoogleCalendarScopes("coach", common), [
+    "https://www.googleapis.com/auth/calendar.events.owned",
+  ]);
+  assert.deepEqual(
+    missingGoogleCalendarScopes("coach", [
+      ...common,
+      "https://www.googleapis.com/auth/calendar.events.owned",
+    ]),
+    [],
+  );
+});
+
+test("calendar webhooks ignore BookMePro writes but reconcile later Google edits", () => {
+  const appointment = { calendarSyncedAt: new Date("2026-07-23T10:00:05Z") };
+  assert.equal(
+    shouldReconcileGoogleEvent(
+      { updated: "2026-07-23T10:00:04Z" },
+      appointment,
+    ),
+    false,
+  );
+  assert.equal(
+    shouldReconcileGoogleEvent(
+      { updated: "2026-07-23T10:00:06Z" },
+      appointment,
+    ),
+    true,
+  );
+  assert.equal(
+    shouldReconcileGoogleEvent({ status: "cancelled" }, appointment),
+    true,
   );
 });

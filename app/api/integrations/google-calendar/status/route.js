@@ -6,6 +6,7 @@ import {
   ensureGoogleCalendarWatch,
   getCalendarConnection,
   listGoogleCalendars,
+  moveFutureManagedEvents,
   revokeGoogleCalendarConnection,
   stopGoogleCalendarWatches,
   syncGoogleDestinationCalendar,
@@ -14,6 +15,8 @@ import {
   drainCalendarOutbox,
   enqueueFutureCoachAppointments,
 } from "../../../../../Lib/integrations/calendarOutbox";
+
+export const maxDuration = 60;
 
 async function pushBookMeProAppointments(connection) {
   await enqueueFutureCoachAppointments(connection.ownerId, 500, {
@@ -102,7 +105,13 @@ export async function PATCH(request) {
       }
       const destinationChanged =
         connection.destinationCalendarId !== body.destinationCalendarId;
-      if (destinationChanged) await stopGoogleCalendarWatches(connection);
+      if (destinationChanged) {
+        await moveFutureManagedEvents(connection, {
+          fromCalendarId: connection.destinationCalendarId || "primary",
+          toCalendarId: body.destinationCalendarId,
+        });
+        await stopGoogleCalendarWatches(connection);
+      }
       connection.destinationCalendarId = body.destinationCalendarId;
       connection.createGoogleMeet = Boolean(body.createGoogleMeet);
       connection.addPendingHolds = body.addPendingHolds !== false;

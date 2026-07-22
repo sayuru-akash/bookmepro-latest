@@ -49,6 +49,21 @@ export default function GoogleCalendarSettings({ ownerType = "coach" }) {
     load();
   }, [load]);
 
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get("calendar");
+    if (result === "connected") {
+      setMessage({
+        severity: "success",
+        text: "Google Calendar connected and synchronized.",
+      });
+    } else if (result === "connection_failed") {
+      setMessage({
+        severity: "error",
+        text: "Google Calendar could not be connected. Try again and approve every requested Calendar permission.",
+      });
+    }
+  }, []);
+
   const writableCalendars = useMemo(
     () =>
       (data?.calendars || []).filter((calendar) =>
@@ -199,6 +214,18 @@ export default function GoogleCalendarSettings({ ownerType = "coach" }) {
           </Box>
         ) : !data?.connected ? (
           <Box sx={{ mt: 3, p: 2.5, bgcolor: "#f7faf8", borderRadius: 2 }}>
+            {data?.status === "needs_reauth" && (
+              <Alert severity="warning" sx={{ mb: 2 }}>
+                Google access has expired or was revoked. Reconnect Calendar to
+                restore conflict checks and synchronization.
+              </Alert>
+            )}
+            {data?.status === "error" && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                Calendar synchronization needs attention. Reconnect to restore
+                the integration.
+              </Alert>
+            )}
             <Typography
               sx={{ fontFamily: "Kanit", color: "text.secondary", mb: 2 }}
             >

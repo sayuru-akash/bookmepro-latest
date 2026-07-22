@@ -13,6 +13,8 @@ import {
   enqueueFutureCoachAppointments,
 } from "../../../../../Lib/integrations/calendarOutbox";
 
+export const maxDuration = 60;
+
 function destination(request, ownerType, result) {
   const base =
     process.env.NEXT_PUBLIC_BASE_URL ||

@@ -2,6 +2,8 @@ import connectToDatabase from "../../../../Lib/mongodb";
 import CalendarConnection from "../../../../models/CalendarConnection";
 import { syncGoogleDestinationCalendar } from "../../../../Lib/integrations/googleCalendar";
 
+export const maxDuration = 60;
+
 export async function POST(request) {
   const channelId = request.headers.get("x-goog-channel-id");
   const token = request.headers.get("x-goog-channel-token");
