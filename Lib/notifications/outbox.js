@@ -6,6 +6,7 @@ import {
   renderAppointmentEmail,
   sendBrevoEmail,
 } from "./email";
+import { appointmentNotificationEvents } from "./policy";
 
 const OUTBOX = "notificationOutbox";
 
@@ -33,61 +34,10 @@ export async function enqueueAppointmentNotifications(
   db,
   appointment,
   transition,
+  { actorRole = null } = {},
 ) {
   await ensureIndexes(db);
-  const events =
-    {
-      created: [
-        {
-          eventType: "booking_received",
-          recipientType: "student",
-          recipient: appointment.email,
-        },
-        {
-          eventType: "new_booking_request",
-          recipientType: "coach",
-          recipient: null,
-        },
-      ],
-      approved: [
-        {
-          eventType: "booking_approved",
-          recipientType: "student",
-          recipient: appointment.email,
-        },
-      ],
-      declined: [
-        {
-          eventType: "booking_declined",
-          recipientType: "student",
-          recipient: appointment.email,
-        },
-      ],
-      cancelled: [
-        {
-          eventType: "booking_cancelled_student",
-          recipientType: "student",
-          recipient: appointment.email,
-        },
-        {
-          eventType: "booking_cancelled_coach",
-          recipientType: "coach",
-          recipient: null,
-        },
-      ],
-      rescheduled: [
-        {
-          eventType: "booking_rescheduled_student",
-          recipientType: "student",
-          recipient: appointment.email,
-        },
-        {
-          eventType: "booking_rescheduled_coach",
-          recipientType: "coach",
-          recipient: null,
-        },
-      ],
-    }[transition] || [];
+  const events = appointmentNotificationEvents(appointment, transition);
   if (!events.length) return;
   const version = Number(appointment.version || 1);
   for (const item of events) {
@@ -98,6 +48,7 @@ export async function enqueueAppointmentNotifications(
         $setOnInsert: {
           appointmentId: appointment._id,
           ...item,
+          actorRole,
           idempotencyKey,
           status: "pending",
           attempts: 0,
@@ -179,6 +130,7 @@ export async function drainNotificationOutbox({
         appointment,
         coach,
         recipientType: claimed.recipientType,
+        actorRole: claimed.actorRole,
       });
       const result = await sendBrevoEmail({
         to: recipient,

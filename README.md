@@ -410,6 +410,8 @@ npm run build
 - Verify `BREVO_API_KEY`, the verified sender, and `BREVO_WEBHOOK_SECRET`.
 - Inspect `notificationOutbox` for retry/dead status and `emailDeliveries` for provider delivery events.
 - Reminder scheduling is limited to 72 hours ahead by Brevo; the daily reconciliation job schedules appointments as they enter that window.
+- Booking requests notify both student and coach. Approval and decline notify the student; cancellation and rescheduling notify both parties with actor-aware copy; completion and no-show status changes notify the student. Approved bookings schedule 24-hour and 1-hour reminders.
+- Booking actions attempt Calendar synchronization and Brevo delivery inline. The single daily `/api/cron` entry is the Vercel Hobby-compatible reconciliation and retry safety net, so no paid-frequency cron is required.
 
 ### 15.6 Booking/capacity issues
 

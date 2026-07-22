@@ -167,6 +167,7 @@ export function renderAppointmentEmail({
   appointment,
   coach,
   recipientType,
+  actorRole,
 }) {
   const details = appointmentDetails(appointment);
   const coachName =
@@ -183,6 +184,54 @@ export function renderAppointmentEmail({
     label: "Manage booking",
     href: `${baseUrl}/dashboard/my-bookings`,
   };
+  const cancelledDefinition =
+    recipientType === "coach"
+      ? actorRole === "coach"
+        ? [
+            "Cancellation confirmed",
+            "The booking has been cancelled",
+            `The booking with ${appointment.name} is no longer scheduled.`,
+          ]
+        : [
+            "Booking cancelled",
+            "A student cancelled a booking",
+            `${appointment.name} is no longer attending this session.`,
+          ]
+      : actorRole === "student"
+        ? [
+            "Cancellation confirmed",
+            "Your booking has been cancelled",
+            "Your cancellation has been recorded and the session is no longer scheduled.",
+          ]
+        : [
+            "Booking cancelled",
+            "Your coach cancelled this booking",
+            `${coachName} cancelled this session. It is no longer scheduled.`,
+          ];
+  const rescheduledDefinition =
+    recipientType === "coach"
+      ? actorRole === "coach"
+        ? [
+            "Change confirmed",
+            "The booking has been rescheduled",
+            `Your change to the booking with ${appointment.name} is confirmed.`,
+          ]
+        : [
+            "Booking changed",
+            "A student rescheduled a booking",
+            `${appointment.name} requested the updated date and time below.`,
+          ]
+      : actorRole === "student"
+        ? [
+            "Change confirmed",
+            "Your booking has been rescheduled",
+            "Your updated request is with the coach. Please review the new date and time below.",
+          ]
+        : [
+            "Booking changed",
+            "Your coach rescheduled this booking",
+            `Please review the updated date and time from ${coachName}.`,
+          ];
   const definitions = {
     booking_received: [
       "Request received",
@@ -204,25 +253,19 @@ export function renderAppointmentEmail({
       "Your booking request was declined",
       `This time is no longer confirmed. You can return to ${coachName}’s profile to choose another available time.`,
     ],
-    booking_cancelled_student: [
-      "Booking cancelled",
-      "Your booking has been cancelled",
-      "The session is no longer scheduled.",
+    booking_cancelled_student: cancelledDefinition,
+    booking_cancelled_coach: cancelledDefinition,
+    booking_rescheduled_student: rescheduledDefinition,
+    booking_rescheduled_coach: rescheduledDefinition,
+    booking_completed: [
+      "Session complete",
+      "Your session has been marked complete",
+      `Your session with ${coachName} is now complete.`,
     ],
-    booking_cancelled_coach: [
-      "Booking cancelled",
-      "A student booking was cancelled",
-      `${appointment.name} is no longer attending this session.`,
-    ],
-    booking_rescheduled_student: [
-      "Booking changed",
-      "Your booking has been rescheduled",
-      "Please review the updated date and time below.",
-    ],
-    booking_rescheduled_coach: [
-      "Booking changed",
-      "A booking has been rescheduled",
-      "Please review the updated date and time below.",
+    booking_no_show: [
+      "Booking update",
+      "Your session was marked as missed",
+      `The booking with ${coachName} was marked as a no-show. Contact your coach if this is incorrect.`,
     ],
     reminder_24h: [
       "Booking reminder",

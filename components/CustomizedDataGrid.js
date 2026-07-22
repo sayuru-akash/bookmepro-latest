@@ -28,6 +28,7 @@ export default function CustomizedDataGrid() {
       const response = await axios.patch("/api/appointments", {
         id: row.id,
         status: newStatus,
+        version: row.version,
       });
 
       if (response.status === 200) {

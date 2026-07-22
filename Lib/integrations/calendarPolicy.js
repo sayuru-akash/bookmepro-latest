@@ -1,5 +1,7 @@
 export function calendarEventDisposition(appointments, addPendingHolds = true) {
-  const active = Array.isArray(appointments) ? appointments : [];
+  const active = (Array.isArray(appointments) ? appointments : []).filter(
+    (appointment) => ["pending", "approved"].includes(appointment.status),
+  );
   if (!active.length) return "delete";
   if (active.some((appointment) => appointment.status === "approved")) {
     return "upsert";

@@ -88,12 +88,13 @@ export default function CustomizedDataGrid() {
   );
 
   // Handle status change actions
-  const handleStatusUpdate = async (appointmentId, status) => {
+  const handleStatusUpdate = async (appointmentId, status, version) => {
     try {
       // Send a PATCH request to update the appointment status
       const response = await axios.patch(`/api/appointments`, {
         id: appointmentId,
         status: status,
+        version,
       });
 
       if (response.status === 200) {
@@ -268,7 +269,11 @@ export default function CustomizedDataGrid() {
                 <Select
                   value={params.row.status || ""}
                   onChange={(e) =>
-                    handleStatusUpdate(params.row._id, e.target.value)
+                    handleStatusUpdate(
+                      params.row._id,
+                      e.target.value,
+                      params.row.version,
+                    )
                   }
                   sx={{
                     minWidth: 120,
@@ -303,7 +308,11 @@ export default function CustomizedDataGrid() {
               <Select
                 value={params.row.status || ""}
                 onChange={(e) =>
-                  handleStatusUpdate(params.row._id, e.target.value)
+                  handleStatusUpdate(
+                    params.row._id,
+                    e.target.value,
+                    params.row.version,
+                  )
                 }
                 sx={{
                   minWidth: 120,
@@ -352,7 +361,13 @@ export default function CustomizedDataGrid() {
                   padding: "8px 16px",
                 }}
                 size="small"
-                onClick={() => handleStatusUpdate(params.row._id, "declined")}
+                onClick={() =>
+                  handleStatusUpdate(
+                    params.row._id,
+                    "declined",
+                    params.row.version,
+                  )
+                }
               >
                 <CircleX /> Decline
               </Button>
@@ -386,7 +401,13 @@ export default function CustomizedDataGrid() {
                 fontFamily: "Kanit, sans-serif",
               }}
               size="small"
-              onClick={() => handleStatusUpdate(params.row._id, "declined")}
+              onClick={() =>
+                handleStatusUpdate(
+                  params.row._id,
+                  "declined",
+                  params.row.version,
+                )
+              }
             >
               <CircleX /> Decline
             </Button>
@@ -403,7 +424,13 @@ export default function CustomizedDataGrid() {
                 fontFamily: "Kanit, sans-serif",
               }}
               size="small"
-              onClick={() => handleStatusUpdate(params.row._id, "approved")}
+              onClick={() =>
+                handleStatusUpdate(
+                  params.row._id,
+                  "approved",
+                  params.row.version,
+                )
+              }
             >
               <CircleCheck /> Approve
             </Button>
@@ -682,6 +709,12 @@ export default function CustomizedDataGrid() {
       {showUserDescription && selectedUser && (
         <UserDescription
           user={selectedUser}
+          onStatusUpdated={async () => {
+            await fetchAppointments(selectedStatus);
+            setSelectedUser(null);
+            setShowUserDescription(false);
+            setExpandedRowIndex(null);
+          }}
           onClose={() => {
             setSelectedUser(null);
             setShowUserDescription(false);

@@ -17,28 +17,36 @@ import { ToastContainer, toast } from "react-toastify";
 import Button from "@mui/material/Button";
 import "react-toastify/dist/ReactToastify.css";
 
-const UserDescription = ({ user, onClose }) => {
+const UserDescription = ({ user, onClose, onStatusUpdated }) => {
+  const [isUpdating, setIsUpdating] = React.useState(false);
   if (!user) return null;
 
   // Handle status change actions
-  const handleStatusUpdate = async (appointmentId, status) => {
+  const handleStatusUpdate = async (status) => {
+    const appointmentId = user._id || user.id;
+    if (!appointmentId || isUpdating) return;
+    setIsUpdating(true);
     try {
       // Send a PATCH request to update the appointment status
       const response = await axios.patch(`/api/appointments`, {
         id: appointmentId,
-        status: status,
+        status: status.toLowerCase(),
+        version: user.version,
       });
 
       if (response.status === 200) {
         toast.success(`Appointment status updated to ${status}`);
-        // Refresh the appointment list after updating the status
-        fetchAppointments(selectedStatus);
+        await onStatusUpdated?.(response.data);
       } else {
-        toast.success("Error updating status");
+        toast.error("Error updating status");
       }
     } catch (error) {
       console.error("Error updating status:", error);
-      toast.success("Error updating status");
+      toast.error(
+        error.response?.data?.message || "Unable to update the appointment.",
+      );
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -48,7 +56,8 @@ const UserDescription = ({ user, onClose }) => {
         return (
           <button
             className="flex items-center justify-center gap-2 px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg"
-            onClick={() => handleStatusUpdate(user, "Declined")}
+            disabled={isUpdating}
+            onClick={() => handleStatusUpdate("declined")}
           >
             Decline
             <CircleX />
@@ -61,14 +70,16 @@ const UserDescription = ({ user, onClose }) => {
           <div className="flex gap-2">
             <button
               className="flex items-center justify-center gap-2 px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg"
-              onClick={() => handleStatusUpdate(user, "Declined")}
+              disabled={isUpdating}
+              onClick={() => handleStatusUpdate("declined")}
             >
               Decline
               <CircleX />
             </button>
             <button
               className="flex items-center justify-center gap-2 px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg"
-              onClick={() => handleStatusUpdate(user, "Approved")}
+              disabled={isUpdating}
+              onClick={() => handleStatusUpdate("approved")}
             >
               Approve
               <CircleCheck />

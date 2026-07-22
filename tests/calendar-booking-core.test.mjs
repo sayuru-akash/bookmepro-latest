@@ -8,7 +8,11 @@ import {
   normalizeAppointmentStatus,
   normalizeTimeZone,
 } from "../Lib/booking/time.js";
-import { escapeHtml } from "../Lib/notifications/email.js";
+import {
+  escapeHtml,
+  renderAppointmentEmail,
+} from "../Lib/notifications/email.js";
+import { appointmentNotificationEvents } from "../Lib/notifications/policy.js";
 import {
   calendarEventDisposition,
   missingGoogleCalendarScopes,
@@ -127,6 +131,9 @@ test("calendar policy removes stale pending holds but preserves approved groups"
     ),
     "upsert",
   );
+  for (const status of ["declined", "cancelled", "completed", "no_show"]) {
+    assert.equal(calendarEventDisposition([{ status }], true), "delete");
+  }
 });
 
 test("calendar OAuth state is authenticated, encrypted, and expires", async () => {
@@ -187,4 +194,59 @@ test("calendar webhooks ignore BookMePro writes but reconcile later Google edits
     shouldReconcileGoogleEvent({ status: "cancelled" }, appointment),
     true,
   );
+});
+
+test("every booking lifecycle action has the intended email recipients", () => {
+  const appointment = { email: "student@example.com" };
+  const recipients = (transition) =>
+    appointmentNotificationEvents(appointment, transition).map(
+      (item) => `${item.eventType}:${item.recipientType}`,
+    );
+  assert.deepEqual(recipients("created"), [
+    "booking_received:student",
+    "new_booking_request:coach",
+  ]);
+  assert.deepEqual(recipients("approved"), ["booking_approved:student"]);
+  assert.deepEqual(recipients("declined"), ["booking_declined:student"]);
+  assert.deepEqual(recipients("cancelled"), [
+    "booking_cancelled_student:student",
+    "booking_cancelled_coach:coach",
+  ]);
+  assert.deepEqual(recipients("rescheduled"), [
+    "booking_rescheduled_student:student",
+    "booking_rescheduled_coach:coach",
+  ]);
+  assert.deepEqual(recipients("completed"), ["booking_completed:student"]);
+  assert.deepEqual(recipients("no_show"), ["booking_no_show:student"]);
+});
+
+test("cancellation and reschedule emails identify who made the change", () => {
+  const appointment = {
+    _id: "507f1f77bcf86cd799439011",
+    name: "Taylor Student",
+    selectedDate: new Date("2026-08-15T00:00:00Z"),
+    selectedTime: "10:00 - 11:00",
+    timeZone: "Australia/Sydney",
+    startAt: new Date("2026-08-15T00:00:00Z"),
+    endAt: new Date("2026-08-15T01:00:00Z"),
+    status: "cancelled",
+  };
+  const coach = { name: "Morgan Coach" };
+  const coachCancelled = renderAppointmentEmail({
+    eventType: "booking_cancelled_student",
+    appointment,
+    coach,
+    recipientType: "student",
+    actorRole: "coach",
+  });
+  assert.match(coachCancelled.subject, /Your coach cancelled this booking/);
+
+  const studentRescheduled = renderAppointmentEmail({
+    eventType: "booking_rescheduled_coach",
+    appointment: { ...appointment, status: "pending" },
+    coach,
+    recipientType: "coach",
+    actorRole: "student",
+  });
+  assert.match(studentRescheduled.subject, /student rescheduled/i);
 });

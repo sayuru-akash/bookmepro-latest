@@ -118,6 +118,7 @@ const CalendarWithAppointments = () => {
       const response = await axios.patch("/api/appointments", {
         id: row.id,
         status: newStatus.toLowerCase(),
+        version: row.version,
       });
 
       if (response.status === 200) {

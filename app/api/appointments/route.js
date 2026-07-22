@@ -25,6 +25,8 @@ import {
   scheduleAppointmentReminders,
 } from "../../../Lib/notifications/outbox";
 
+export const maxDuration = 60;
+
 const SAFE_PROJECTION = {
   name: 1,
   email: 1,
@@ -366,7 +368,9 @@ export async function POST(request) {
     }
     capacityReserved = null;
     appointment._id = result.insertedId;
-    await enqueueAppointmentNotifications(db, appointment, "created");
+    await enqueueAppointmentNotifications(db, appointment, "created", {
+      actorRole: "student",
+    });
     await runLifecycleJobs(db, appointment);
     return Response.json(appointment, { status: 201 });
   } catch (error) {
@@ -646,8 +650,11 @@ export async function PATCH(request) {
     }
     appointment = result;
 
-    if (transition)
-      await enqueueAppointmentNotifications(db, appointment, transition);
+    if (transition) {
+      await enqueueAppointmentNotifications(db, appointment, transition, {
+        actorRole: session.user.role,
+      });
+    }
     await runLifecycleJobs(db, appointment);
     appointment = await db
       .collection("appointments")
