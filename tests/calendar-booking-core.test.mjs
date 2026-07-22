@@ -270,6 +270,7 @@ test("Brevo delivery webhook requires the exact endpoint, secret, and events", (
       {
         url: expectedUrl,
         events,
+        batched: false,
         headers: [
           { key: "x-bookmepro-webhook-secret", value: "test-secret" },
         ],
@@ -281,7 +282,22 @@ test("Brevo delivery webhook requires the exact endpoint, secret, and events", (
   );
   assert.equal(
     brevoWebhookIsCurrent(
-      { url: expectedUrl, events, headers: [] },
+      { url: expectedUrl, events, batched: false, headers: [] },
+      expectedUrl,
+      "test-secret",
+    ),
+    false,
+  );
+  assert.equal(
+    brevoWebhookIsCurrent(
+      {
+        url: expectedUrl,
+        events,
+        batched: true,
+        headers: [
+          { key: "x-bookmepro-webhook-secret", value: "test-secret" },
+        ],
+      },
       expectedUrl,
       "test-secret",
     ),

@@ -133,6 +133,7 @@ export function brevoWebhookIsCurrent(webhook, expectedUrl, secret) {
     return (
       endpointMatches &&
       (headerMatches || queryMatches) &&
+      webhook?.batched !== true &&
       BREVO_WEBHOOK_EVENTS.every((event) => events.has(event))
     );
   } catch {

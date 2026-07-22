@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import connectToDatabase from "../../../../Lib/mongodb";
 
+export const maxDuration = 60;
+
 function safeEqual(a, b) {
   const left = Buffer.from(String(a || ""));
   const right = Buffer.from(String(b || ""));
@@ -15,35 +17,43 @@ export async function POST(request) {
   if (!configured || !safeEqual(configured, provided)) {
     return Response.json({ message: "Unauthorized." }, { status: 401 });
   }
-  const event = await request.json();
-  const messageId = event["message-id"] || event.messageId;
-  if (!messageId || !event.event)
+  const body = await request.json();
+  const events = Array.isArray(body) ? body : [body];
+  if (
+    !events.length ||
+    events.some(
+      (event) =>
+        !(event["message-id"] || event.messageId) || !event.event,
+    )
+  ) {
     return Response.json({ message: "Invalid event." }, { status: 400 });
+  }
   const connection = await connectToDatabase();
   const db = connection.db;
-  const timestamp = Number(
-    event.ts_event || event.ts || event.date || Date.now(),
-  );
-  await db.collection("emailDeliveries").updateOne(
-    { messageId, event: event.event, timestamp },
-    {
-      $setOnInsert: {
-        messageId,
-        event: event.event,
-        timestamp,
-        recipient: event.email || null,
-        subject: event.subject || null,
-        tags: event.tags || event.tag || [],
-        receivedAt: new Date(),
+  for (const event of events) {
+    const messageId = event["message-id"] || event.messageId;
+    const timestamp = Number(
+      event.ts_event || event.ts || event.date || Date.now(),
+    );
+    await db.collection("emailDeliveries").updateOne(
+      { messageId, event: event.event, timestamp },
+      {
+        $setOnInsert: {
+          messageId,
+          event: event.event,
+          timestamp,
+          recipient: event.email || null,
+          subject: event.subject || null,
+          tags: event.tags || event.tag || [],
+          receivedAt: new Date(),
+        },
       },
-    },
-    { upsert: true },
-  );
-  await db
-    .collection("notificationOutbox")
-    .updateMany(
+      { upsert: true },
+    );
+    await db.collection("notificationOutbox").updateMany(
       { providerMessageId: messageId },
       { $set: { providerStatus: event.event, providerUpdatedAt: new Date() } },
     );
+  }
   return new Response(null, { status: 204 });
 }
